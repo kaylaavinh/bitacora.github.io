@@ -1,0 +1,1036 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Reflection Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
+<style>
+/* Layout: threads list (left), radial map (center), reading panel (right). Stacks on phones.
+   Single deliberate look: a dark star-chart ground, with one hue per thread of thought. */
+:root {
+  --bg: #0a0b11;
+  --panel: #0f1118;
+  --fg: #ffffff;
+  --dim: #ffffff;
+  --faint: #ffffff;
+  --rule: rgba(232, 234, 242, 0.1);
+  --hover: rgba(232, 234, 242, 0.06);
+  --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: Calibri;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr) minmax(270px, 350px);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+button1 { font: calibri; color: black; background:#3d3d3d; border: 0; cursor: pointer; text-align: left; }
+button1:focus-visible, canvas:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+
+.threads, .reader { min-height: 0; min-width: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+.threads { padding: 22px 20px 22px 0; display: flex; flex-direction: column; gap: 18px; }
+.reader { padding: 22px 0 22px 20px; border-left: 1px solid var(--rule); }
+
+.eyebrow { font-family: Calibri; font-size: 12px; letter-spacing: 0.09em; color: var(--dim); margin: 0; }
+h1 { font-weight: 400; font-size: 30px; line-height: 1.08; margin: 8px 0 10px; letter-spacing: -0.01em; text-wrap: balance; }
+h1 em { font-style: italic; color: var(--dim); }
+.lede { font-size: 15px; line-height: 1.5; color: var(--dim); margin: 0; max-width: 34ch; }
+
+.thread-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.thread { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; column-gap: 10px; align-items: baseline; width: 100%; padding: 9px 10px; border-radius: 6px; }
+.thread:hover { background: var(--hover); }
+.thread[aria-pressed="true"] { background: var(--hover); box-shadow: inset 0 0 0 1px var(--rule); }
+.thread .sw { width: 9px; height: 9px; border-radius: 50%; background: var(--c); transform: translateY(1px); box-shadow: 0 0 10px var(--c); }
+.thread .nm { font-size: 15px; line-height: 1.25; }
+.thread .ct { font-family: calibri; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.thread .ds { grid-column: 2 / 4; font-size: 12px; line-height: 1.45; color: var(--dim); margin-top: 4px; display: none; }
+.thread[aria-pressed="true"] .ds { display: block; }
+
+.how { font-family: calibri; font-size: 12px; line-height: 1.7; color: var(--faint); margin: 0; }
+.how b { color: var(--dim); font-weight: 500; }
+
+.stage { position: relative; min-width: 0; min-height: 0; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+.zoom { position: absolute; right: 8px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+.zoom button { width: 30px; height: 30px; border: 1px solid var(--rule); border-radius: 6px; text-align: center; font-family: calibri; font-size: 15px; color: var(--dim); background: var(--panel); }
+.zoom button:hover { color: var(--fg); background: var(--hover); }
+#tip { position: absolute; pointer-events: none; max-width: 260px; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 6px; background: rgba(15, 17, 24, 0.96); font-size: 15px; line-height: 1.4; opacity: 0; transition: opacity 0.12s; z-index: 3; }
+#tip.on { opacity: 1; }
+#tip .eyebrow { margin-bottom: 4px; }
+
+.entry-text { font-size: 20px; line-height: 1.5; margin: 12px 0 18px; text-wrap: pretty; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 22px; padding: 0; list-style: none; }
+.chip { display: inline-flex; gap: 7px; align-items: center; padding: 5px 10px 5px 8px; border: 1px solid var(--rule); border-radius: 99px; font-family: calibri; font-size: 11px; color: var(--fg); }
+.chip:hover { background: var(--hover); }
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.sub { font-family: calibri; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.items { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.item { width: 100%; padding: 9px 8px; border-radius: 6px; display: grid; gap: 3px; }
+.item:hover { background: var(--hover); }
+.item .meta { display: flex; gap: 8px; align-items: center; font-family: calibri; font-size: 11px; color: var(--faint); }
+.item .meta .dots { display: inline-flex; gap: 3px; }
+.item .meta .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+.item .sn { font-size: 14.5px; line-height: 1.4; color: var(--dim); }
+.item:hover .sn { color: var(--fg); }
+.empty p { font-size: 16px; line-height: 1.55; color: var(--dim); margin: 0 0 12px; max-width: 36ch; }
+.clear { font-family: calibri; font-size: 11px; color: var(--dim); border: 1px solid var(--rule); border-radius: 6px; padding: 5px 9px; margin-top: 4px; }
+.clear:hover { color: var(--fg); background: var(--hover); }
+.tcount { font-family: calibri; font-size: 11px; color: var(--faint); margin: 6px 0 14px; }
+
+.add { font-family: calibri; font-size: 11px; letter-spacing: 0.04em; color: var(--fg); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 11px; margin: 0 0 18px; background: var(--hover); }
+.add:hover { border-color: var(--dim); }
+.lbl { display: block; font-family: calibri; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--dim); margin: 16px 0 6px; }
+.lbl-row { display: flex; justify-content: space-between; align-items: end; }
+.lbl-row .lbl { margin-bottom: 6px; }
+textarea, select { width: 100%; font: inherit; font-size: 16px; line-height: 1.5; color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 11px; }
+select { font-family: calibri; font-size: 12.5px; padding: 9px 8px; }
+textarea { resize: vertical; min-height: 120px; }
+textarea:focus-visible, select:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mini { font-family: calibri; font-size: 11px; color: var(--fg); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 9px; margin-bottom: 6px; }
+.mini:hover { background: var(--hover); }
+.chip.tg[aria-pressed="true"] { background: var(--hover); border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+.chip.tg[aria-pressed="false"] { color: var(--dim); }
+.hint { font-family: calibri; font-size: 11px; line-height: 1.6; color: var(--dim); margin: 0 0 14px; }
+.actions { display: flex; gap: 8px; align-items: center; }
+.primary { font-family: calibri; font-size: 12px; font-weight: 500; color: var(--bg); background: var(--fg); border-radius: 6px; padding: 9px 14px; }
+.primary:hover { background: #fff; }
+button:disabled { opacity: 0.5; cursor: progress; }
+.actions .clear { margin-top: 0; }
+
+.filters { display: flex; flex-direction: column; gap: 8px; }
+.fchips { display: flex; flex-wrap: wrap; gap: 5px; }
+.fc { font-family: calibri; font-size: 11px; color: var(--dim); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 8px; white-space: nowrap; }
+.fc span { color: var(--faint); font-variant-numeric: tabular-nums; }
+.fc:hover { background: var(--hover); color: var(--fg); }
+.fc[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.fc[aria-pressed="true"] span { color: var(--bg); }
+.filters .clear { align-self: flex-start; margin-top: 2px; }
+.seg { display: flex; align-items: center; gap: 5px; margin: 0 0 12px; font-family: calibri; font-size: 11px; color: var(--dim); }
+.seg span { margin-right: 4px; letter-spacing: 0.09em; text-transform: uppercase; }
+.seg button { font-family: calibri; font-size: 11px; color: var(--dim); border: 1px solid var(--rule); border-radius: 6px; padding: 3px 8px; }
+.seg button:hover { background: var(--hover); color: var(--fg); }
+.seg button[aria-pressed="true"] { color: var(--fg); background: var(--hover); box-shadow: inset 0 0 0 1px var(--dim); }
+.grp { font-family: calibri; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--faint); padding: 14px 8px 4px; }
+.back { display: block; margin: 0 0 14px; }
+
+.items.story .item { padding: 16px 8px 18px; border-bottom: 1px solid var(--rule); border-radius: 0; gap: 7px; }
+.items.story .item:hover { background: var(--hover); }
+.items.story .sn { font-size: 17px; line-height: 1.6; color: var(--fg); white-space: pre-wrap; }
+.items.story .meta { font-size: 11px; }
+::placeholder { color: #ffffff; opacity: 0.7; }
+
+@media (max-width: 860px) {
+  body.forming { grid-template-rows: auto minmax(0, 26%) minmax(0, 1fr); }
+  body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 38%); }
+  .threads { padding: 12px 0 6px; gap: 8px; overflow: visible; }
+  h1 { font-size: 22px; margin: 2px 0 0; }
+  .lede, .how, .threads .eyebrow { display: none; }
+  .fchips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .filters { gap: 6px; }
+  .thread-list { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; scrollbar-width: none; }
+  .thread { width: auto; flex: none; grid-template-columns: 10px auto; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 99px; }
+  .thread .nm { font-size: 13px; white-space: nowrap; }
+  .thread .ct, .thread .ds { display: none !important; }
+  .reader { border-left: 0; border-top: 1px solid var(--rule); padding: 14px 0 18px; }
+  .entry-text { font-size: 17px; margin: 8px 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) { #tip { transition: none; } }
+</style>
+
+<aside class="threads" aria-label="Threads of thought">
+  <header>
+    <p class="eyebrow" id="stats">Seven weeks of thinking</p>
+    <h1>Kayla <em>designer?</em></h1>
+    <p class="lede">Each dot is an entry in my bitácora.</p>
+    <p class="lede">Each segment is the type of entry.</p>
+    <p class="lede">Each ring is a week in the semester.</p>
+    <p class="lede">Each color is a theme I've explored.</p>
+  </header>
+  <p class="eyebrow">Thread</p>
+  <ul class="thread-list" id="threadList"></ul>
+  <section class="filters" aria-label="Filter by week and category">
+    <p class="eyebrow">Week</p><div class="fchips" id="weekChips"></div>
+    <p class="eyebrow">Category</p><div class="fchips" id="catChips"></div>
+    <button1 class="clear" id="clearF" hidden>Clear filters</button>
+  </section>
+</aside>
+
+<main class="stage" id="stage">
+  <canvas id="c" tabindex="0" aria-label="Radial map of reflections. Rings are weeks 1 to 7, slices are the six categories. Use the thread list and reading panel to browse entries."></canvas>
+  <div class="zoom">
+    <button id="zin" aria-label="Zoom in">+</button>
+    <button id="zout" aria-label="Zoom out">&minus;</button>
+    <button id="zreset" aria-label="Reset view">&#8634;</button>
+  </div>
+  <div id="tip" role="tooltip"></div>
+</main>
+
+<section class="reader" id="reader" aria-live="polite"></section>
+
+<script>
+/* ---------- threads ---------- */
+const NARR = {
+  V: { name: 'Am I the Villain?', color: '#ff6b57', desc: 'What is my role in design? How can I challenge my expectations of the world and change perspectives to challenge my own.' },
+  D: { name: 'What Is Design?', color: '#ffd24a', desc: 'What are the boundries of design? And how can it be defined or undefined.' },
+  A: { name: 'With or Without Purpose', color: '#5aa9ff', desc: 'Whether making, mapping or acting we need a purpose, a message, a point of view.' },
+  R: { name: 'Ripples and Unintended Consequences', color: '#45d69a', desc: 'Intention and cascades, to what extent are unintended concequences my responsibility.' },
+  S: { name: 'Who Am I in the System', color: '#ff72b8', desc: 'Building my own system and who I am as a designer.' },
+  O: { name: "The Observer's Dilemma", color: '#b890ff', desc: 'By observing adn existing we change reality.' }
+};
+const TAGS = Object.keys(NARR);
+const CATS = ['my opinions', 'my reflections', 'my examples', 'my connections', 'my questions', 'our project'];
+
+/* ---------- entries: week, category, passages [text, tags] ---------- */
+const D = [];
+function cell(w, c, items) { items.forEach(([t, g]) => D.push({ w, c, t, g: g.split('') })); }
+
+cell(1, 0, [
+ [`Defining happiness stupid. Defining it for my future self is logically identical to defining it for someone else I can't predict who I'll become. I just want to be happy regardless of what that means to who I am at that moment. There are things that if they made me happy then would make me happy now. if i only value money in the future now we would be disappointed in future me but if Im happy its ok.`, 'SD'],
+ [`I cannot expect to know what other people want or will want. Just as I can't define happiness for a future version of myself, I can't define it for others. I can only do my best.`, 'SO'],
+ [`Intention matters for systems design. Design requires a thought-out, considered decision. If consequences are unintended, it's harder to call it "design" though the outcomes may be positive. Everything being "systems design" defeats the purpose of having a definition. If there's no boundary, there's no definition. Systems design needs concise, intentional boundaries.`, 'RD'],
+ [`Systems design should pull from nature/Earth more than anything else. Nature is the first and best design system; the world would not exist if the entire system didn't function. This should be the model, not capitalism or human-centric frameworks.`, 'DR'],
+ [`We can't assume anything produced doesn't contribute to at least one system. So if you are designing responsibly you have to be a systems designer even if you are just making one product.`, 'RV']
+]);
+cell(1, 1, [
+ [`I swear when we design product there is a lot of systems thinking and understanding each impact of the products life cycle. Maybe it's that systems design goes one more level? Not just this is change this aspect but how that aspect changes another. More about the ripple or bullwhip effect. I still think it's harsh to say the other levels of design don't require and involve systems thinking (at least when done well). Maybe that's the key. "When done well" all design should be systems design.`, 'DR'],
+ [`I recognize my biases about who I work with and what I value. I naturally gravitate toward like-minded people, which is why I deliberately chose a diverse group for this project.`, 'SV'],
+ [`My background shapes what I see as "identity loss." As a non-Spanish, non-religious outsider, I identify identity loss with arts, culture, language, and food not religion. Sofia and Paola have different frameworks because they're from Spain and carry different relationships to spirituality and religious systems.`, 'SV'],
+ [`i think the class might be over-explaining. Silence in class isn't confusion; it's "I already know this." but i dont want to speak for everyone.`, 'SO']
+]);
+cell(1, 2, [
+ [`Yellowstone wolves (re: intention in systems design, cascade effects, nature as design model). Introducing wolves → reduced deer population → increased plant biodiversity → increased all other animal species. One small, deliberate intervention cascaded through the entire ecosystem. The problem: unclear how much was intentional vs. happy accident this ambiguity defines my investigation.`, 'RD'],
+ [`My own evolution in desired outcomes (re: evolving happiness, process-based alignment). I won't discount future-me's choices even if present-me isn't proud of them if it makes me happy, it's valid. Work at dunkin donuts (10 years ago); Ecotourism/Southeast Asia (now); Possibly finance/making money (future).`, 'S'],
+ [`Baseline happiness research: happiness is genetic. Baseline happiness is largely innate. Very few circumstances actually change it. External achievements (money, job, family) don't guarantee happiness individually or combined. natural systems thinking ability?`, 'S']
+]);
+cell(1, 3, [
+ [`I've been thinking about circular economies a lot (for thesis prep) and it feels like that requires a ton of systems thinking. This course could become very relevant for me.`, 'RS'],
+ [`Intention as boundary (systems design) ↔ Intention as action (values maintenance). I question whether intention defines systems design. Separately, I argue that maintaining long-term values through intentional choices matters more than defining a happiness goal.`, 'DS'],
+ [`Can't predict my happiness ↔ can't predict others. I can't predict who I'll become, so defining happiness now for future-me is flawed logic. By extension: I can't know what other people want or will want; I can only do my best.`, 'SO'],
+ [`Group diversity forcing perspective ↔ Class forcing systems perspective. My group's different backgrounds (Spanish/non-Spanish, religious/non-religious/spiritual) are forcing me to question my assumptions. The class requirement to intervene is forcing me past analysis paralysis.`, 'VS'],
+ [`I read daniel kanneman for my psych class in singapore. super interesting.`, 'S']
+]);
+cell(1, 4, [
+ [`How important is intention when designing an intervention into a system? Can good unintended consequences count as design if the outcome wasn't consciously intended?`, 'RD'],
+ [`What is systems design outside of human interest but also outside of human comprehension? If I use nature as a model, how do I reconcile the fact that nature doesn't "intend" anything? (yellowstone case)`, 'DR'],
+ [`Is my definition of systems design (considered intent + understanding cascades + optimizing for best outcomes) accurate, or will it shift? (I expect it to evolve, but I need a working boundary now.)`, 'DS'],
+ [`Should the planet-level thinking be embedded into each design level, rather than sitting as the top tier? The planet is the only system that successfully recognizes every impact of every minor action shouldn't that awareness frame all other levels?`, 'RD'],
+ [`When Sofia, Paola, and I define "identity" differently, how do I design an intervention without imposing my framework? How do I honor their systems while contributing my perspective?`, 'VS']
+]);
+cell(1, 5, [
+ [`I'm working with people who value things I don't naturally prioritize. Sofia and Paola see religion/spirituality as central to Madrid identity; I see arts, culture, language. This misalignment is productive it's the whole reason I chose them.`, 'SV'],
+ [`I must recognize the system I come from. My non-religious, outsider perspective shapes what I identify as "identity loss." Sofia and Paola's systems (Spanish, embedded in religious institutions even if non-practicing) are different. Understanding these systems is foundational to designing together.`, 'SV'],
+ [`I need to resist assuming religion's disappearance is inherently bad. This is my bias to examine. I see it as "yes, a loss, but not the worst thing from globalization." Sofia frames it as identity loss. These aren't compatible unless I understand what identity means to each of us.`, 'VS']
+]);
+
+cell(2, 0, [
+ [`Question everything, even data, is real, but damn what a rabbit hole.`, 'SV'],
+ [`Leverage points is like the yellowstone case i talked ab last week: how do you enter a system and make big changes.`, 'R'],
+ [`Othering intentional or unintentional. Unintentional othering comes from not recognizing my own background.`, 'VR'],
+ [`Pharmaceutical companies are the worst.`, 'V']
+]);
+cell(2, 1, [
+ [`Have assumptions, just be aware of them and question them.`, 'VS'],
+ [`data isnt everything. we need to talk to people (Leonie). qualitative data can be powerful with a small group. you dont have time to know everything (Clara).`, 'O'],
+ [`Proximity and care drive what I work on. "You don't fight with someone you don't care about." Its important to find connection in what I do even if it makes me sad or angry. Those are still active emotions that drive creativity.`, 'SA'],
+ [`Wicked Problems are constructed by humans and environments they don't exist in isolation.`, 'R'],
+ [`The complicated/complex/adaptive framework hasn't clicked for me yet. I understand it theoretically, but I can't see how it applies to actually viewing the world or making impact. It feels abstract without application.`, 'S']
+]);
+cell(2, 2, [
+ [`Work with what you got (Clara). Taryn said the same thing when talking about my thesis. Important to note that not having access to one thing will open new doors. i wanted to focus on a problem in SE Asia. Taryn said why cant you address that problem in Madrid where you have access even if the problem isn't so big.`, 'DS'],
+ [`The rebound effect (hidden consequences, looking beyond technology). Wicked problems and complexity.`, 'R']
+]);
+cell(2, 3, [
+ [`we talked abou thte power of SMEs. at my job i have been reliant on SMEs but its difficult becuase they arent always the best at comunicating. so you find the best person on the team who knows enough (maybe not the best) and can talk about it clearly.`, 'S'],
+ [`Wicked problems: I talked about it last week but didn't include it in the summary, but my application essay was about solving a problem that pulls on different strings like untangling a knot that causes tension in different places.`, 'RS']
+]);
+cell(2, 4, [
+ [`How much of systemic thinking is really just storytelling? Everything is connected its just about how you say it? is that cynical?`, 'AS'],
+ [`Is there a good version of othering. When you tell older students "take care of the first-years; they don't know as much as you; you need to be role models," you're creating difference but for a positive outcome??? Manipulative.`, 'VA'],
+ [`How do complicated, complex, and complex-adaptive problems require different approaches? I understand them theoretically, but how does this framework actually help me view the world and make impact?`, 'DS']
+]);
+cell(2, 5, [
+ [`Hypothesis: madrid is losing identity - identity is lost through loss of community - community is lost through loss of religion. religion or religious activities? what are religious acitivies that build community?`, 'A'],
+ [`differnt angle: religious people no longer feel connected to thier church or community? there is no more "place". does religion teach you to be alone? or make you feel you are never alone?`, 'O'],
+ [`lonliness is a feeling that doesnt have to be caused by being a lone. being alone isnt bad. we need to look at definintion of loneliness. what does it mean where does it come form.`, 'O'],
+ [`We gotta start mapping. its too easy to get lost in rabbit holes.`, 'A']
+]);
+
+cell(3, 0, [
+ [`We used frameworks to identify what we were missing and what we could expand upon. The key challenge: most frameworks are solution-oriented, but we needed to understand the problem first.`, 'A'],
+ [`The iceberg gave us structure. It formalized our research and revealed depth we hadn't formally articulated.`, 'A'],
+ [`We mapped loneliness and religion separately, then found they were connected underneath the surface. This was the breakthrough moment.`, 'AR'],
+ [`Two frameworks, one underlying system. Cultural/academic approaches and religious approaches both tackle community, belonging, and isolation just with different entry points. The difference in framing creates a difference in how people experience being alone. Maybe everything's connected. Or maybe we got lucky. Either way, this discovery structured our entire project map.`, 'RA']
+]);
+cell(3, 1, [
+ [`We approached this with loneliness (straightforward) and religion (conceptually messy). I struggled with how they connected: Was religion the problem? The solution? Were we conflating them?`, 'AS'],
+ [`The iceberg revealed the answer. When we mapped both icebergs, there were striking parallels at the deeper levels and contrasts that showed nuance. If you look at religious solitude not as something to be solved, but as something to study and understand deeply, you see that loneliness and religion are essentially the same issue approached two different ways.`, 'A']
+]);
+cell(3, 2, [
+ [`itshard not to solution yet. its what weve been taught to do. im having the sam eissue with my thesis. and htat feels bigger bc what if i do a ll this research and theres no solution i feel like i need something now.`, 'SA']
+]);
+cell(3, 3, [
+ [`Jonathan Haidt: children mental health > digital world > loss of democracy > loss of parental trust in other adults and community > how we develop and learn > 90s protection movement. loose trust in eachother. loose play based childhood. phone based childhood.`, 'R'],
+ [`Iceberg model > Hidden consequences thinking > complexity?`, 'R']
+]);
+cell(3, 4, [
+ [`Frameworks emphasize "agents". We framed it differently: agents are the people perpetrating systems (media, academia, religious institutions and how they frame things) because we feel everyone is kind of affected. not sure if this is right. might need some refinement.`, 'VA'],
+ [`What models are we still missing? We've started layering in other frameworks but fitting them all together has been messy. The cuasal layer analysis feels like it should fit the iceberg and it kinda does but not really.`, 'A']
+]);
+cell(3, 5, [
+ [`We need our cosmogram to feel lonely.`, 'AO'],
+ [`Multi-Level Evolution of the Problem. good framework for us.`, 'AR'],
+ [`what direction do we go next?? who? where? how?`, 'SA']
+]);
+
+cell(4, 0, [
+ [`the interviewer is never nuetral. be awear of biases. you should be rooting for your interviewee.`, 'OV'],
+ [`people are not defined by thier words or actions but thier habits.`, 'O'],
+ [`You have to have a cutoff point in systems analysis. Systems can go on forever; you can unravel as much as you want. But there's a point where you need to use judgment and say, okay, we're moving forward with this even if there are flaws or systemic issues behind it.`, 'D'],
+ [`Participating/being vulnerable sometimes causes less of a ripple than observing. Neutrality isn't necessarily doing nothing. Sometimes being in the group makes people feel more comfortable because you're just as vulnerable as they are.`, 'OR'],
+ [`Trust is a symptom of vulnerability. Co-presence and mutual transformation are really important.`, 'O'],
+ [`Context is also a system. Every person comes from different places and perspectives; they create the system they're in. Even when we try to go in open to any outcome, it doesn't always work that way.`, 'VO']
+]);
+cell(4, 1, [
+ [`methods impact resluts.`, 'O'],
+ [`stakeholders are everyone.`, 'R'],
+ [`The iceberg was more valuable for organizing chaos than for research itself.`, 'A'],
+ [`The deeper you dive, you can connect any two things.`, 'A'],
+ [`Framing is critical: We need to minimize the frame we're coming from (our background, perspective, biases) as much as possible while acknowledging we can never be completely neutral.`, 'VO'],
+ [`Generative sessions are a potential method worth experimenting with. better than surveys for revealing what people actually experience about loneliness (vs. what they say they experience).`, 'O']
+]);
+cell(4, 2, [
+ [`Soft city lab is coming to madrid in a few weeks. it collaborative urban design based on systems research.`, 'D'],
+ [`say, do say they do: People's relationship to loneliness it's a vulnerability + taboo topic, so we can't rely on what people say they experience; we need methods that reveal what they actually do or feel.`, 'O']
+]);
+cell(4, 3, [
+ [`Supply chain managemnet. the design of the supply chain network. Its systems design!`, 'DR'],
+ [`Ethnography class: the researcher is never completely neutral; sometimes participating causes less disruption than observing.`, 'O'],
+ [`Vulnerability ↔ Trust: Co-presence and mutual vulnerability build trust. This is why being a participant observer might reveal more than neutral observation.`, 'O'],
+ [`Researcher presence ↔ Loneliness observation. The observer paradox: our presence reduces the thing we're studying. We need methods that work around this (generative sessions rather than surveys).`, 'O'],
+ [`Research trust paradox ↔ Needing cutoff points: We can't trust past research, can't redo it, can't evaluate alternatives without absolute values. The only way forward: accept the flaws and move with judgment.`, 'DO']
+]);
+cell(4, 4, [
+ [`where does empathy cut off? if she is greenswashing ill try not to judge but also i dont want to help?`, 'VS'],
+ [`How do we evaluate research without trusting our absolute values? We're stuck in a logical loop how do we get unstuck?`, 'A'],
+ [`How do we frame our research as neutrally as possible when we know we can't be completely neutral? What's the realistic limit?`, 'O'],
+ [`How do we observe or understand loneliness when our presence inherently counteracts it?`, 'O']
+]);
+cell(4, 5, [
+ [`who do we have access to? cna we get a journalist or researcher? not just people who are loneli? do we want people swho dont identify as lonely but are at risk through exposute`, 'O'],
+ [`we have no money`, 'D'],
+ [`if your social media usafe is more than minee you get a cookie`, 'O'],
+ [`We're in a weird cycle with research trust. We can't redo research that's already been done, but we're not convinced we can trust how it was done. and we don't trust our absolute value either.`, 'O'],
+ [`People don't like talking about loneliness. One, it's vulnerable. Two, there's stigma. We're asking people to discuss something that's part of the problem we're trying to understand.`, 'O']
+]);
+
+cell(5, 0, [
+ [`The choice to take a perspective is still a choice, and that choice comes with consequences. It inherently leaves people out, and I think that is okay as long as you are conscious.`, 'AV'],
+ [`You can leave people out temporarily in order to understand something more clearly, as long as you are able to step back later and question that choice.`, 'AV'],
+ [`I strongly believe omission can harm people, but it can also serve people, and serve us, and sometimes it is necessary in order to truly understand something.`, 'VR'],
+ [`Relationships are where design finds leverage.`, 'DR'],
+ [`I really agree with the idea that if you do not have an argument or a statement, then you do not have a map. Honestly, I would even push that further and say there is no reason to create anything that does not have some kind of message or objective. Im still workshopping this theory though and my group has pushed back.`, 'AS'],
+ [`Failure is a good thing. It pushes us to learn, and I think it is a key part of design and development.`, 'AS']
+]);
+cell(5, 1, [
+ [`You need to be able to bond with people and relate to them, but you also have to keep an eye on perspective. There is a real danger in taking an entire group of people out of the picture, even if that omission helps you focus.`, 'VO'],
+ [`Mapping communicates, but it also simplifies. It puts things into a flatter space than they actually exist in. We can have an intention with a map, but other people may interpret it differently, use it for their own advantage, or even use it against the thing it was trying to communicate.`, 'AR'],
+ [`I have been thinking about whether pure information is even possible. If every presentation of information already contains an argument, then what does "objective information" really mean?`, 'A'],
+ [`I have noticed this tension in our group project too. Paula often pushes for research because it is interesting, while I keep asking what we will do with it, why we need it, and what makes it useful.`, 'AS']
+]);
+cell(5, 2, [
+ [`Alice Rawthorn came up in another class in relation to how maps communicate difficult technical information to a wider public and can actually create change. The London poverty map is a really strong example of this because it made poverty visible in a way people could understand and respond to.`, 'AR'],
+ [`Jonathan Haidt's point about the phone crisis and younger generations really stuck with me. kids are not having enough unsupervised play, and because of that they are not learning how to fail and recover. I think this is hugely important in child development.`, 'R'],
+ [`Montessori taught me how to fail, how to learn from experience, and how to stay curious in the face of failure. I also notice this in myself academically I often do better on exams when I did badly on the midterm first, because it shows me where I am lacking and forces me to improve.`, 'S']
+]);
+cell(5, 3, [
+ [`Perspective connects directly to mapping. A map is also a choice of perspective, a form of othering, and has unintended consequences.`, 'AV'],
+ [`Ethnography: you focus in order to understand, but that focus always leaves something or someone out.`, 'O'],
+ [`Relationships are where design finds leverage feels really important here.`, 'DR'],
+ [`This also connects to communication. When you make relationships visible, people can understand difficult systems much more easily.`, 'AR'],
+ [`Failure connects to design in the same way. It is not just a bad outcome. it is part of how learning happens and part of how stronger systems or stronger thinking develop.`, 'D']
+]);
+cell(5, 4, [
+ [`If every map has an argument, is pure information even possible?`, 'A'],
+ [`If it is impossible to present information objectively, then what is the purpose of trying to present "just information"?`, 'A'],
+ [`Is there any meaning in information without a message, or is all information already doing something?`, 'A'],
+ [`How do we account for the fact that people may use a map or interpretation differently than we intended?`, 'AR'],
+ [`Why do we decide that some forms of knowledge are useful and meaningful, and others are not?`, 'A']
+]);
+cell(5, 5, [
+ [`There are three things we need to uncover for each person: their frame of loneliness, their relationship to loneliness, their lifestyle.`, 'O'],
+ [`The main findings are not going to come from any one of these alone, but from the connections between them. That feels really important because, again, connections are where design finds leverage.`, 'DR'],
+ [`A lot of the tension in the project is around whether research should be pursued because it is interesting, or because it has a clear use. But that tension may actually be useful because it is forcing us to define what matters and why.`, 'AS'],
+ [`we are trying to cover as much of the behavioral attitudinal scale as possible.`, 'O']
+]);
+
+cell(6, 0, [
+ [`Different levels of intrusion matter. It's not just that we're there it's how we're there. Asking questions is different than observing, which is different than generative research. Each changes the environment differently.`, 'O'],
+ [`I like going in with a hypothesis. I need something to test or disprove. It gives structure and purpose.`, 'SA']
+]);
+cell(6, 1, [
+ [`We're stuck in an observer paradox: studying loneliness means we can't really observe it because our presence takes away the being alone part. Every method is a compromise.`, 'O'],
+ [`We did affinity clustering with four groups: positive-consistent, negative-consistent, positive-inconsistent, negative-inconsistent. Our first research mostly found consistent people, so the grouping wasn't perfect but that's fine. We can hunt negative cases now.`, 'A'],
+ [`We did a digital survey alone, then the same survey in-person. People were more comfortable in one than the other. I think observation plus conversation is the only way to get what people say and what they actually think.`, 'O'],
+ [`We haven't really addressed the digital layer when people are alone, they immediately reach for their phone. That's a gap.`, 'OR']
+]);
+cell(6, 2, [
+ [`Affinity clustering: Four hypothetical groups. Reality mostly gave us consistent people. The hypothesis helped us test and refine.`, 'A'],
+ [`Digital vs. in-person: Same survey, different contexts. Comfort levels differed. This comparison matters.`, 'O'],
+ [`Park observation: Sitting and watching. Part of my zoom in/zoom out attempt, but still figuring out how to do it ethically.`, 'OV']
+]);
+cell(6, 3, [
+ [`This ties to the observer paradox we talked about in ethnography. You're never neutral, but there are degrees. Generative research might feel less intrusive because vulnerability goes both ways.`, 'O'],
+ [`It also connects to the research trust issue: we don't trust existing loneliness research, so we're trying generative methods. But we still have to make choices and move forward.`, 'OA']
+]);
+cell(6, 4, [
+ [`How do we actually see what people experience when being there prevents that experience?`, 'O'],
+ [`Is the phone always a crutch, or sometimes connection? Does it matter for our project?`, 'OR'],
+ [`How much can we zoom in and out without losing the person?`, 'O']
+]);
+cell(6, 5, [
+ [`Need to figure out: How do we observe loneliness without being creepy?`, 'OV'],
+ [`Phone/digital behavior is part of the system we're missing. Observation + conversation works better than observation alone.`, 'OR'],
+ [`Hypothesis-driven approach gives us structure to test and refine.`, 'A']
+]);
+
+cell(7, 0, [
+ [`I like having structure. Not rigid, here's-what-you-do structure but parameters. Constraints are how people get creative. Frugal innovation proves it: design made through necessity.`, 'DS'],
+ [`Understanding the system teaches you the constraints. They're not always physical; they're relational. If X influences Y, you know how far you can push without breaking Y. That's where the real trade-offs live how far can you go on safety when money is tight? How much do you prioritize one community knowing another might suffer?`, 'DR'],
+ [`I want to know as much as possible, as soon as possible, so I can design within that. Being comfortable with unknown and change is something I'm working on it's uncomfortable.`, 'SD']
+]);
+cell(7, 1, [
+ [`Structure isn't limiting; it's enabling. The more you understand the constraints, the more you know what you're actually working with.`, 'D'],
+ [`Systems thinking is largely just going as far as you can to map the space you're given.`, 'D'],
+ [`I've noticed I want clarity early. That's my strength and my liability it drives me to explore constraints, but it also makes me uncomfortable when they're still fuzzy.`, 'S']
+]);
+cell(7, 2, [
+ [`Survey as prototype: We designed a survey that felt comforting instead of clinical less formal, more inviting. We proved that by designing a space to feel a certain way, you get more honest responses, more elaborate answers. It's proof that comfort enables vulnerability.`, 'AO'],
+ [`MVP thinking: A prototype doesn't need to solve everything. It proves one thing. One visual element, one technical piece does it work? If it does, you move forward and flesh out the rest. If it doesn't, that failure is a signal to rethink the question.`, 'AD']
+]);
+cell(7, 3, [
+ [`Value comes from connections in a map; value also comes from working within constraints and understanding the space you're given. A prototype is "a question with a shape" it's applied, purposeful, proof-based. Minimum viable product thinking ties directly to frugal innovation: do more with less, understand what you actually need to test.`, 'AD']
+]);
+cell(7, 4, [
+ [`How do I balance my need for early clarity with the reality that some things only become clear through making/testing? How comfortable can I get with emergent constraints?`, 'SA']
+]);
+cell(7, 5, [
+ [`Our survey succeeded because it was a prototype that proved a hypothesis: comfort and trust matter when people discuss loneliness. That's a model for how to approach what's next ask a small question with a prototype, get an answer, rethink if needed.`, 'AO'],
+ [`When a prototype fails, don't mourn it. It's telling you the question was wrong or the answer is no go back to research and reframe.`, 'AS']
+]);
+
+
+cell(8, 0, [
+ [`absolutely loved the quote that a prototype is a question with a shape. Again, it's this idea of having an applied purpose to everything you do.`, 'AD'],
+ [`I think storytelling is huge. It changes whether people pay attention and whether they care at all. If you can't communicate your idea well, no one's going to care that came up across juries, design management, everywhere this semester.`, 'AD'],
+ [`I love constraints. They don't limit creativity, they fuel it. Coding is the best example so many rules but somehow that allows for insane possibilities. I'm not detail-oriented at all, but coding gives me control and space to think in a way I really like.`, 'DS'],
+ [`We move through life with all these assumptions that feel like "of course it's that way," but then you dig deeper and maybe they're not. It's scary. Even when they're not meant to be harmful, they can cause real harm. I'm working on being more comfortable with uncertainty.`, 'VS']
+]);
+cell(8, 1, [
+ [`I thought maybe the curriculum was coordinated, like they planned these themes, but I think it's actually just connected and I'm getting better at seeing those threads. A connection I made between Dorothea Lange (photography class 3 years ago) and design narratives class right now: technology isn't an objective medium. That just clicked.`, 'AS'],
+ [`This is the skill: making connections across seemingly separate things.`, 'DS'],
+ [`The iceberg model is everywhere now. Once you see it you can't unsee it. There's so much more behind everything, even mundane stuff. Every small thing has systemic power and history.`, 'RA'],
+ [`I can't build my bitakura from an ending I don't know yet. But if I identify themes I'm intrigued by and collect reflections that tie to them, maybe a story emerges. And if not, at least the connections themselves tell a story.`, 'AS']
+]);
+cell(8, 2, [
+ [`Salt: mundane item, but there's wars, language changes, systemic impact. This is the "grand narrative of everyday shit" I'm obsessed with. And the iodine thing: we switched to fancy salts, lost the iodine that was added decades ago to solve a health problem. No one realized. It was manipulative for our own good, and now we're perpetuating a new problem.`, 'RV'],
+ [`Gender in households: daughters more depended on sons. No one questions it. It's a mental model we're all building into systems without thinking.`, 'VR'],
+ [`Dorothea Lange: technology isn't objective. Directly ties to what I frame, what I show, what stays hidden.`, 'AV']
+]);
+cell(8, 3, [
+ [`Storytelling, systems thinking, icebergs everywhere I'm trying to weave these threads together for my bitakura.`, 'AS'],
+ [`Constraints in code parallel how I think about design. Both force you into parameters that somehow create more possibilities. Very representative of how my brain works.`, 'DS'],
+ [`Every mental model has a history, a system, a reason. That's what systems design is.`, 'DR']
+]);
+cell(8, 4, [
+ [`How do I tell a story with reflections that don't have an arc yet?`, 'AS'],
+ [`When you remove one mental model, how do you know you're not just replacing it with another unexamined assumption?`, 'VA'],
+ [`Can I make something look good without it feeling AI-generated?`, 'DS']
+]);
+cell(8, 5, [
+ [`I started coding my bitakura in Claude, which is faster but loses some control. But it's actually a good representation of how I think constraints enabling creativity. The structure mirrors my design process.`, 'DS'],
+ [`Everything looks like Claude now. Sans-serif, clean, AI-generated. I'm tired of it. I love sans-serif (I'm dyslexic), but I need to make it feel intentional, not AI.`, 'DS'],
+ [`Being briefed on what the jury vs the professors expect is important to balance.`, 'AS']
+]);
+
+cell(9, 0, [
+ [`I get speculative design as a tool, but I don't like when it's the end goal. What resonates with me is using different ways of thinking to influence how we ideate and understand the present, not just displaying a speculative future. There's this huge gap between what has to be done for us to survive a planetary crisis and what's actually possible or plausible. We're stuck in a collective action trap people won't stop using AI because no one else is stopping. It's paralyzing.`, 'DA'],
+ [`We get so focused on dystopia. Everyone wants to imagine the worst thing, and it just gets doom and gloom. I already feel the weight of the world. I don't need that pulled to extremes.`, 'AS'],
+ [`From a design perspective, it's easier to design something to prevent a dystopia than to encourage a utopia. Maybe because we see it more in media, maybe because prevention feels more familiar. I'm not sure.`, 'DV'],
+ [`I like the idea of promoting trends that move us in a positive direction. Looking for utopias is a great exercise you're choosing to look for positive signals. I don't think we do that enough.`, 'A']
+]);
+cell(9, 1, [
+ [`I understand Arturo Escobar and agree with him, but there's just this huge disconnect between the concepts and what's plausible. I also think my generation has this sense of doom and gloom. The dystopias feel much closer. That could be my own issues, but there's this feeling that there's nothing we can do.`, 'VS'],
+ [`I get why we're not doing positive forecasting no one's feeling that way right now. But I think there's space between the extremes that we're missing.`, 'A'],
+ [`The futures cone really grounded me. Speculative design always feels intangible, like art. The cone makes it tangible this is where we're trying to go, this is how we're doing it. That made a real difference for me.`, 'DA']
+]);
+cell(9, 2, [
+ [`Pace layering diagram   shows where and how an intervention can be applied and how much impact you're having. It's a clear way to think about this.`, 'DR'],
+ [`Futures cone   grounds speculative design in a tangible space rather than something floating in the clouds. It makes the pinpoints at the edge of the cone actually mean something.`, 'DA'],
+ [`2040 timeline   our project and the question of whether we can shift culture in 15 years.`, 'RA']
+]);
+cell(9, 3, [
+ [`I read Arturo Escobar and Dune and Rabi. Escobar I definitely understand. Systems thinking using speculative design as a tool that's the approach that resonates with me.`, 'DA'],
+ [`The pace layering shows culture takes decades to shift. Our project relies on mental models, which means we're really trying to shift culture. That connects to how long this actually takes.`, 'RA']
+]);
+cell(9, 4, [
+ [`Why are we so drawn to dystopias versus utopias?`, 'VS'],
+ [`Why is designing for prevention easier than encouraging a utopia?`, 'DV'],
+ [`Is cultural shift through mental models actually possible in 15 years?`, 'RA'],
+ [`How much impact are we actually having with our intervention?`, 'RA']
+]);
+cell(9, 5, [
+ [`Our project relies a lot on these concepts of mental models, so we're really trying to shift culture. The pace layering makes me think maybe we can't do a full cultural shift in 15 years. Maybe the first steps happen by 2040, but the fuller realization doesn't happen until 2080. The futures cone helped me ground where our intervention sits and what we're actually trying to move toward.`, 'RA']
+]);
+
+cell(10, 0, [
+ [`I think design is a value proposal to culture. It's the intentional creation and reshaping of culture hopefully in a positive direction. That's what separates design from engineering or art or politics. Design has this specific power: it touches everything. How we sit in a space, what a chair looks like, the systems we create. All of it is culture.`, 'D'],
+ [`I really respect what Alvaro did with Madrid Design Week he was brave enough to define not just what design is, but what good design is in a place that didn't have that framework. By creating that space, he created a canon, something to aspire to. He defined the borders. not sure if i agree or not but thats still crazy impressive.`, 'DV'],
+ [`I think we're missing curiosity for its own sake. We tie curiosity to goals, to growth, to outcomes. But curiosity should be omnipresent. It should be separate from research objectives. Yes, research should be targeted and guided by what you're already curious into, but forcing curiosity into a goal-oriented space is wrong.`, 'AS'],
+ [`Recognizing the artists of our time before they're in the history books is a skill, but it's also a little pretentious. The assumption that you know who will be remembered, who matters that's a strong statement.`, 'VD'],
+ [`It's easy to empathize with people you already agree with. Harder with people who villainize you and who you villainize.`, 'V'],
+ [`I believe the only way to solve problems is to listen to people, understand them through systems design and lens-shifting. But does that mean I have to temporarily put aside my morals? Or is there a line where I shouldn't?`, 'V']
+]);
+cell(10, 1, [
+ [`Design intentionally reshapes culture. And that's valuable.`, 'D'],
+ [`Montessori encouraged failure and ignorance as learning. I love learning. I'm excited about many different topics. But I'm noticing a tension: we encourage curiosity, but always with a goal. We need to know where we're going, display growth, use curiosity as a tool. We're missing the pure version of it.`, 'AS'],
+ [`The bigger thing I'm realizing is this question that's emerging as a narrative through my bitacora: Am I the villain?`, 'VS'],
+ [`We talk so much about perspective and challenging assumptions. But I'm starting to ask: if I flip it, if I force myself to believe the opposite, that I'm the enemy, my beliefs are wrong, what are they experiencing? How do I reconcile that?`, 'VS'],
+ [`But here's what I'm struggling with: I have strong political beliefs. On abortion, for example, I believe the right to choose what happens to your own body is yours. But my language around that supports my beliefs. It villainizes those who disagree. And I'm trying to flip that, to see if I were on the other side, how am I villainizing my own beliefs? But I end up in the same place. It feels so obvious to me that you shouldn't have to. But clearly people do. And if I want to understand it, I have to empathize with it. Is there a line? Do we even try to understand the Nazis? I don't know the answer.`, 'VS']
+]);
+cell(10, 2, [
+ [`Alvaro and Madrid Design Week: He created a major design week in a space that didn't have one. By doing that, he created a definition of design itself. He created something to aspire to and defined the boundaries of the field.`, 'D'],
+ [`The US elections: A recent example of how I'm politically aligned with one side and villainize the other. The people who disagree aren't in my networks. They're the people I need to be understanding if I want to bridge that gap.`, 'V'],
+ [`Abortion/bodily autonomy: An example of a belief I hold strongly where my language villainizes the other side. When I try to flip it and see their perspective, I struggle to reconcile it with my values.`, 'V']
+]);
+cell(10, 3, [
+ [`Curiosity ties back to my early education and how I've always valued learning for its own sake. But now I'm seeing how society has instrumentalized it: we learn in order to achieve, not because we're curious. That connects to what Alvaro was saying about recognizing artists: you need to have broad, curious knowledge to spot who matters before the world does.`, 'AS'],
+ [`The idea of "am I the villain" connects directly to everything we've been doing in this class. We talk about perspective-shifting, understanding different systems, empathizing with people outside our bubbles. But I'm realizing how hard that actually is when your moral values feel non-negotiable.`, 'VS'],
+ [`The US elections were today, and I'm grateful for how things turned out from my political beliefs. But the people who disagree, those aren't on my Instagram feed. Those are the most important people to be having conversations with. How am I supposed to understand what they're experiencing if I'm not talking to them?`, 'V']
+]);
+cell(10, 4, [
+ [`This idea that design is a value proposition to culture has been making me think about what design actually is. If an engineer can build a chair, if an artist can make a poster, if a politician can design a system what exactly is the space design occupies? What are its limits? And what is it really adding?`, 'D'],
+ [`Why are we taught to have curiosity with a goal instead of valuing curiosity for its own sake?`, 'AS'],
+ [`Is there a moral line where you shouldn't try to understand or empathize? Should you try to understand Nazis? maybe?`, 'V'],
+ [`How do you empathize with people supporting things you believe are fundamentally wrong like genocide?`, 'V'],
+ [`Can you balance the need to understand all perspectives with moral boundaries, or is that a false tension?`, 'VD']
+]);
+cell(10, 5, [
+ [`We're working on changing mental models around loneliness and religion. That requires shifting culture. But culture shifts on decades, not years. I'm wondering if our 2040 timeline is realistic for the culture layer, or if we need to reframe.`, 'RA'],
+ [`The pace layering diagram helps here. It shows where interventions can be applied and how much impact they'll have. Our project sits in the culture layer, which is the slowest to change.`, 'RD']
+]);
+
+/* ---------- geometry ---------- */
+const R0 = 72, BW = 52, MARG = 7;
+let WEEKS = 7, EXTENT = 610;
+const inner = w => R0 + (w - 1) * BW;
+const outer = w => inner(w) + BW;
+const rad = deg => deg * Math.PI / 180;
+const PULL = { V: 0.45, D: 0.5, A: 0.6, R: 0.55, S: 0.5, O: 0.5 };
+const SWIRL = { V: 1, D: -1, A: 1, R: -1, S: 1, O: -1 };
+const BASE_N = D.length;
+let edges = [], adj = [], nodeEdges = [], byTag = {}, pairs = 0;
+TAGS.forEach(t => { NARR[t].rgb = [1, 3, 5].map(i => parseInt(NARR[t].color.slice(i, i + 2), 16)).join(','); });
+
+/* positions and connections are rebuilt whenever entries change */
+function rebuild() {
+  WEEKS = Math.max(7, ...D.map(d => d.w));
+  EXTENT = outer(WEEKS) + 140;
+  const cellMap = {};
+  D.forEach((d, i) => { (cellMap[d.w + '-' + d.c] = cellMap[d.w + '-' + d.c] || []).push(i); });
+  Object.values(cellMap).forEach(list => {
+    const n = list.length;
+    list.forEach((i, k) => {
+      const d = D[i];
+      const t = (k + 0.5) / n;
+      const a = rad(-90 + 60 * d.c + MARG + t * (60 - 2 * MARG));
+      const off = n === 1 ? 0 : n === 2 ? [-10, 10][k] : [-13, 0, 13][k % 3];
+      const r = inner(d.w) + BW / 2 + off;
+      d.x = Math.cos(a) * r; d.y = Math.sin(a) * r;
+      d.rad = 4.4 + d.g.length * 0.9;
+    });
+  });
+  edges = []; adj = D.map(() => new Map()); nodeEdges = D.map(() => []); pairs = 0;
+  for (let i = 0; i < D.length; i++) for (let j = i + 1; j < D.length; j++) {
+    const sh = D[i].g.filter(t => D[j].g.includes(t));
+    if (!sh.length) continue;
+    pairs++;
+    adj[i].set(j, sh); adj[j].set(i, sh);
+    const dist = Math.hypot(D[i].x - D[j].x, D[i].y - D[j].y);
+    const f = Math.sqrt(Math.min(1, dist / 700));
+    sh.forEach(t => {
+      const k = 1 - (1 - PULL[t]) * f, sg = SWIRL[t] * 0.17 * f;
+      const dx = D[j].x - D[i].x, dy = D[j].y - D[i].y;
+      const e = { a: i, b: j, t, ax: D[i].x, ay: D[i].y, bx: D[j].x, by: D[j].y,
+        cx: (D[i].x + D[j].x) / 2 * k - dy * sg, cy: (D[i].y + D[j].y) / 2 * k + dx * sg };
+      nodeEdges[i].push(edges.length); nodeEdges[j].push(edges.length); edges.push(e);
+    });
+  }
+  TAGS.forEach(t => { byTag[t] = edges.filter(e => e.t === t); NARR[t].count = D.filter(d => d.g.includes(t)).length; });
+  updateMeta();
+}
+
+/* ---------- state ---------- */
+let hov = null, sel = null;
+const flt = { t: null, w: null, c: null };
+let sortBy = 'week';
+const hasFlt = () => !!flt.t || flt.w != null || flt.c != null;
+const matchNode = i => (!flt.t || D[i].g.includes(flt.t)) && (flt.w == null || D[i].w === flt.w) && (flt.c == null || D[i].c === flt.c);
+let mode = 'none', litNodes = null, litEdges = [], ctxEdges = [], litCells = new Map();
+const view = { k: 1, x: 0, y: 0 };
+let W = 0, H = 0, dpr = 1, S = 1, OX = 0, OY = 0;
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const stage = document.getElementById('stage'), tip = document.getElementById('tip');
+
+function recompute() {
+  const a = hov != null ? hov : sel;
+  litCells = new Map();
+  if (a != null) {
+    mode = 'node';
+    litNodes = new Set([a, ...adj[a].keys()]);
+    litEdges = nodeEdges[a].map(k => edges[k]); ctxEdges = [];
+    litNodes.forEach(i => litCells.set(D[i].w + '-' + D[i].c, 0.045));
+    litCells.set(D[a].w + '-' + D[a].c, 0.13);
+  } else if (hasFlt()) {
+    mode = 'filter';
+    litNodes = new Set(); D.forEach((d, i) => { if (matchNode(i)) litNodes.add(i); });
+    litEdges = edges.filter(e => litNodes.has(e.a) && litNodes.has(e.b) && (!flt.t || e.t === flt.t));
+    ctxEdges = edges.filter(e => litNodes.has(e.a) !== litNodes.has(e.b) && (!flt.t || e.t === flt.t));
+    if (flt.w != null || flt.c != null) {
+      const ws = flt.w != null ? [flt.w] : Array.from({ length: WEEKS }, (_, i) => i + 1);
+      const cs = flt.c != null ? [flt.c] : [0, 1, 2, 3, 4, 5];
+      ws.forEach(w => cs.forEach(c => litCells.set(w + '-' + c, flt.w != null && flt.c != null ? 0.1 : 0.05)));
+    } else litNodes.forEach(i => litCells.set(D[i].w + '-' + D[i].c, 0.05));
+  } else { mode = 'none'; litNodes = null; litEdges = []; ctxEdges = []; }
+  draw();
+}
+
+/* ---------- drawing ---------- */
+function layout() {
+  const r = stage.getBoundingClientRect();
+  W = Math.max(1, r.width); H = Math.max(1, r.height);
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  draw();
+}
+function sector(w, c, fill) {
+  const a0 = rad(-90 + 60 * c), a1 = rad(-90 + 60 * (c + 1));
+  ctx.beginPath(); ctx.arc(0, 0, outer(w), a0, a1); ctx.arc(0, 0, inner(w), a1, a0, true); ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+}
+function strokeEdges(list, rgb, alpha, lw) {
+  if (!list.length) return;
+  ctx.beginPath();
+  for (const e of list) { ctx.moveTo(e.ax, e.ay); ctx.quadraticCurveTo(e.cx, e.cy, e.bx, e.by); }
+  ctx.strokeStyle = 'rgba(' + rgb + ',' + alpha + ')'; ctx.lineWidth = lw / S; ctx.stroke();
+}
+function draw() {
+  if (!W) return;
+  const base = Math.min(W, H) / (2 * EXTENT);
+  S = base * view.k; OX = W / 2 + view.x; OY = H / 2 + view.y;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * OX, dpr * OY);
+  const lw = 1 / S;
+
+  // slices and rings
+  for (let c = 0; c < 6; c += 2) {
+    const a0 = rad(-90 + 60 * c), a1 = rad(-90 + 60 * (c + 1));
+    ctx.beginPath(); ctx.arc(0, 0, outer(WEEKS), a0, a1); ctx.arc(0, 0, R0, a1, a0, true); ctx.closePath();
+    ctx.fillStyle = 'rgba(232,234,242,0.016)'; ctx.fill();
+  }
+  litCells.forEach((al, key) => {
+    const [w, c] = key.split('-').map(Number);
+    sector(w, c, mode === 'filter' && flt.t ? 'rgba(' + NARR[flt.t].rgb + ',' + al + ')' : 'rgba(232,234,242,' + al + ')');
+  });
+  ctx.strokeStyle = 'rgba(232,234,242,0.09)'; ctx.lineWidth = lw;
+  for (let w = 1; w <= WEEKS; w++) { ctx.beginPath(); ctx.arc(0, 0, inner(w), 0, Math.PI * 2); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(0, 0, outer(WEEKS), 0, Math.PI * 2); ctx.stroke();
+  for (let c = 0; c < 6; c++) {
+    const a = rad(-90 + 60 * c);
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * R0, Math.sin(a) * R0); ctx.lineTo(Math.cos(a) * (outer(WEEKS) + 10), Math.sin(a) * (outer(WEEKS) + 10)); ctx.stroke();
+  }
+
+  // connections
+  ctx.globalCompositeOperation = 'lighter';
+  if (mode === 'none') {
+    TAGS.forEach(t => strokeEdges(byTag[t], NARR[t].rgb, 0.05, 0.8));
+  } else {
+    TAGS.forEach(t => strokeEdges(byTag[t], NARR[t].rgb, 0.012, 0.7));
+    TAGS.forEach(t => {
+      const l = litEdges.filter(e => e.t === t);
+      if (mode === 'node') { strokeEdges(l, NARR[t].rgb, 0.16, 5); strokeEdges(l, NARR[t].rgb, 0.9, 1.5); }
+      else { strokeEdges(l, NARR[t].rgb, 0.08, 3); strokeEdges(l, NARR[t].rgb, 0.4, 1); strokeEdges(ctxEdges.filter(e => e.t === t), NARR[t].rgb, 0.05, 0.8); }
+    });
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // labels: weeks
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const aN = hov != null ? hov : sel;
+  const activeWeek = aN != null ? D[aN].w : (mode === 'filter' && flt.w != null ? flt.w : -1);
+  for (let w = 1; w <= WEEKS; w++) {
+    const y = -(inner(w) + BW / 2);
+    ctx.fillStyle = '#0a0b11'; ctx.strokeStyle = w === activeWeek ? 'rgba(232,234,242,0.85)' : 'rgba(232,234,242,0.16)';
+    ctx.beginPath(); ctx.roundRect(-12, y - 7, 24, 14, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.font = '500 8.5px "IBM Plex Mono", monospace';
+    ctx.fillText('W' + w, 0, y + 0.5);
+  }
+  // labels: categories
+  const activeCat = aN != null ? D[aN].c : (mode === 'filter' && flt.c != null ? flt.c : -1);
+  for (let c = 0; c < 6; c++) {
+    const a = rad(-90 + 60 * c + 30), r = outer(WEEKS) + 28 + Math.abs(Math.cos(a)) * 44;
+    ctx.globalAlpha = c === activeCat ? 1 : 0.8;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = (c === activeCat ? '600' : '500') + ' 11px "IBM Plex Mono", monospace';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '1.4px';
+    ctx.fillText(CATS[c].toUpperCase(), Math.cos(a) * r, Math.sin(a) * r);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    ctx.globalAlpha = 1;
+  }
+
+  // center
+  ctx.beginPath(); ctx.arc(0, 0, 58, 0, Math.PI * 2);
+  ctx.fillStyle = '#0d0f16'; ctx.fill(); ctx.strokeStyle = 'rgba(232,234,242,0.3)'; ctx.lineWidth = lw; ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.font = 'italic 400 17px Newsreader, Georgia, serif';
+  ctx.fillText('Kayla', 0, -4);
+  ctx.fillStyle = '#ffffff'; ctx.font = '500 10px "calibri"';
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '1px';
+  ctx.fillText('The Designer?', 0, 12);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+  // nodes
+  const active = hov != null ? hov : sel;
+  for (let i = 0; i < D.length; i++) {
+    const d = D[i], lit = !litNodes || litNodes.has(i);
+    ctx.globalAlpha = lit ? 1 : 0.16;
+    const n = d.g.length, seg = Math.PI * 2 / n, gap = n > 1 ? 0.5 : 0;
+    ctx.lineWidth = 2.3; ctx.lineCap = 'butt';
+    d.g.forEach((t, k) => {
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.rad + 2.6, -Math.PI / 2 + k * seg + gap / 2, -Math.PI / 2 + (k + 1) * seg - gap / 2);
+      ctx.strokeStyle = NARR[t].color; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.rad, 0, Math.PI * 2);
+    ctx.fillStyle = i === active ? '#ffffff' : '#dfe2ee'; ctx.fill();
+    if (d.mine) {
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.rad + 6, 0, Math.PI * 2);
+      ctx.setLineDash([1.6, 2.4]); ctx.strokeStyle = 'rgba(232,234,242,0.75)'; ctx.lineWidth = 0.9; ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (i === sel || i === hov) {
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.rad + 8, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,' + (i === sel ? 0.95 : 0.6) + ')'; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- hit testing & interaction ---------- */
+function hit(mx, my) {
+  let best = null, bd = Infinity;
+  for (let i = 0; i < D.length; i++) {
+    const sx = OX + D[i].x * S, sy = OY + D[i].y * S;
+    const lim = Math.max(10, (D[i].rad + 6) * S), dd = Math.hypot(mx - sx, my - sy);
+    if (dd < lim && dd < bd) { bd = dd; best = i; }
+  }
+  return best;
+}
+function snip(t, n) { if (t.length <= n) return t; const s = t.slice(0, n); return s.slice(0, s.lastIndexOf(' ') > n * 0.6 ? s.lastIndexOf(' ') : n) + '…'; }
+function esc(s) { return s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+
+let drag = null, moved = 0;
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; moved = 0; });
+cv.addEventListener('pointermove', e => {
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (drag) {
+    moved = Math.max(moved, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
+    if (moved > 4) { view.x = drag.vx + e.clientX - drag.x; view.y = drag.vy + e.clientY - drag.y; tip.classList.remove('on'); draw(); return; }
+  }
+  if (e.pointerType === 'touch') return;
+  const h = hit(mx, my);
+  if (h !== hov) { hov = h; recompute(); }
+  if (h == null) tip.classList.remove('on');
+  else {
+    const d = D[h];
+    tip.innerHTML = '<p class="eyebrow">Week ' + d.w + ' -- ' + CATS[d.c] + '</p>' + esc(snip(d.t, 130));
+    tip.style.left = Math.min(mx + 16, W - 270) + 'px'; tip.style.top = Math.min(my + 16, H - 110) + 'px';
+    tip.classList.add('on');
+  }
+});
+cv.addEventListener('pointerup', e => {
+  const wasClick = moved <= 4; drag = null;
+  if (!wasClick) return;
+  const r = cv.getBoundingClientRect(), h = hit(e.clientX - r.left, e.clientY - r.top);
+  if (h != null) selectNode(h); else if (!formOpen) clearAll();
+});
+cv.addEventListener('pointerleave', () => { if (hov != null) { hov = null; recompute(); } tip.classList.remove('on'); });
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  zoomAt(mx, my, Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
+function zoomAt(mx, my, f) {
+  const nk = Math.min(7, Math.max(0.6, view.k * f)), g = nk / view.k;
+  const cx = W / 2, cy = H / 2;
+  view.x = (mx - cx) - (mx - cx - view.x) * g; view.y = (my - cy) - (my - cy - view.y) * g; view.k = nk; draw();
+}
+document.getElementById('zin').onclick = () => zoomAt(W / 2, H / 2, 1.4);
+document.getElementById('zout').onclick = () => zoomAt(W / 2, H / 2, 1 / 1.4);
+document.getElementById('zreset').onclick = () => { view.k = 1; view.x = 0; view.y = 0; draw(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !(e.target.closest && e.target.closest('textarea,select,input'))) clearAll(); });
+
+/* ---------- selection ---------- */
+function selectNode(i) { formOpen = false; sel = i; hov = null; recompute(); renderReader(); }
+function setFilter(k, v) { formOpen = false; flt[k] = flt[k] === v ? null : v; sel = null; hov = null; syncFilters(); recompute(); renderReader(); }
+function clearFilters() { flt.t = null; flt.w = null; flt.c = null; }
+function clearAll() { formOpen = false; if (sel != null) sel = null; else clearFilters(); hov = null; syncFilters(); recompute(); renderReader(); }
+
+/* ---------- panels ---------- */
+const threadList = document.getElementById('threadList'), reader = document.getElementById('reader');
+TAGS.forEach(t => {
+  const li = document.createElement('li');
+  li.innerHTML = '<button class="thread" data-t="' + t + '" aria-pressed="false" style="--c:' + NARR[t].color + '"><span class="sw"></span><span class="nm">' + esc(NARR[t].name) + '</span><span class="ct">' + NARR[t].count + '</span><span class="ds">' + esc(NARR[t].desc) + '</span></button>';
+  threadList.appendChild(li);
+});
+threadList.addEventListener('click', e => { const b = e.target.closest('.thread'); if (b) setFilter('t', b.dataset.t); });
+function syncFilters() {
+  threadList.querySelectorAll('.thread').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === flt.t)));
+  document.querySelectorAll('#weekChips .fc').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.w === flt.w)));
+  document.querySelectorAll('#catChips .fc').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.c === flt.c)));
+  document.getElementById('clearF').hidden = !hasFlt();
+}
+function renderFilters() {
+  const wc = document.getElementById('weekChips'), cc = document.getElementById('catChips');
+  const wn = {}, cn = {};
+  D.forEach(d => { wn[d.w] = (wn[d.w] || 0) + 1; cn[d.c] = (cn[d.c] || 0) + 1; });
+  wc.innerHTML = Array.from({ length: WEEKS }, (_, i) => '<button class="fc" data-w="' + (i + 1) + '" aria-pressed="false">W' + (i + 1) + ' <span>' + (wn[i + 1] || 0) + '</span></button>').join('');
+  cc.innerHTML = CATS.map((c, i) => '<button class="fc" data-c="' + i + '" aria-pressed="false">' + c + ' <span>' + (cn[i] || 0) + '</span></button>').join('');
+  syncFilters();
+}
+document.querySelector('.filters').addEventListener('click', e => {
+  const b = e.target.closest('.fc');
+  if (b) { if (b.dataset.w) setFilter('w', +b.dataset.w); else setFilter('c', +b.dataset.c); return; }
+  if (e.target.closest('#clearF')) { clearFilters(); sel = null; syncFilters(); recompute(); renderReader(); }
+});
+function updateMeta() {
+  const mine = D.length - BASE_N;
+  document.getElementById('stats').textContent = D.length + ' passages -- ' + pairs + ' links' + (mine ? ' -- ' + mine + ' added' : '');
+  threadList.querySelectorAll('.thread').forEach(b => { b.querySelector('.ct').textContent = NARR[b.dataset.t].count; });
+  renderFilters();
+}
+
+function itemHtml(i, shared, full) {
+  const d = D[i];
+  return '<li><button class="item" data-i="' + i + '"><span class="meta"><span class="dots">' + shared.map(t => '<i style="--c:' + NARR[t].color + '"></i>').join('') + '</span>Week ' + d.w + ' -- ' + CATS[d.c] + '</span><span class="sn">' + esc(full ? d.t : snip(d.t, 120)) + '</span></button></li>';
+}
+let formOpen = false;
+const draft = { t: '', w: null, c: 0, g: [] };
+const ADD_BTN = '<button class="add" data-act="add">+ Add a reflection</button>';
+
+function renderReader() {
+  document.body.classList.toggle('forming', formOpen);
+  if (formOpen) { renderForm(); return; }
+  if (sel != null) {
+    const d = D[sel];
+    const conn = [...adj[sel].entries()].sort((a, b) => b[1].length - a[1].length || D[a[0]].w - D[b[0]].w || a[0] - b[0]);
+    reader.innerHTML = ADD_BTN + (hasFlt() ? '<button class="clear back" data-act="back">&larr; Back to results</button>' : '') + '<p class="eyebrow">Week ' + d.w + ' -- ' + CATS[d.c] + (d.mine ? ' -- added by you' : '') + '</p><p class="entry-text">' + esc(d.t) + '</p>' +
+      '<ul class="chips">' + d.g.map(t => '<li><button class="chip" data-t="' + t + '" style="--c:' + NARR[t].color + '"><i></i>' + esc(NARR[t].name) + '</button></li>').join('') + '</ul>' +
+      (d.mine ? '<p><button class="clear" data-act="remove" data-id="' + esc(d.id) + '">Remove from map</button></p>' : '') +
+      '<p class="sub">Linked to ' + conn.length + ' passages</p><ul class="items">' + conn.map(([j, sh]) => itemHtml(j, sh)).join('') + '</ul>';
+  } else if (hasFlt()) {
+    const idx = D.map((d, i) => i).filter(matchNode);
+    const tIdx = d => TAGS.indexOf(d.g[0]);
+    const keyOf = { week: i => D[i].w, category: i => D[i].c, thread: i => tIdx(D[i]) }[sortBy];
+    const labelOf = { week: k => 'Week ' + k, category: k => CATS[k], thread: k => NARR[TAGS[k]].name }[sortBy];
+    idx.sort((a, b) => keyOf(a) - keyOf(b) || D[a].w - D[b].w || D[a].c - D[b].c || a - b);
+    const parts = [flt.w != null ? 'Week ' + flt.w : null, flt.c != null ? CATS[flt.c] : null, flt.t ? NARR[flt.t].name : null].filter(Boolean);
+    let list = '', last = null;
+    idx.forEach(i => { const k = keyOf(i); if (k !== last) { list += '<li class="grp">' + esc(labelOf(k)) + '</li>'; last = k; } list += itemHtml(i, D[i].g, true); });
+    reader.innerHTML = ADD_BTN + '<p class="eyebrow">Filtered by</p><p class="entry-text" style="margin-bottom:6px">' + esc(parts.join(' -- ')) + '</p>' +
+      (flt.t && parts.length === 1 ? '<p class="lede" style="max-width:none">' + esc(NARR[flt.t].desc) + '</p>' : '') +
+      '<p class="tcount">' + idx.length + ' passages</p>' +
+      '<div class="seg" role="group" aria-label="Sort passages by"><span>Sort by</span>' + ['week', 'category', 'thread'].map(k => '<button data-sort="' + k + '" aria-pressed="' + (sortBy === k) + '">' + k + '</button>').join('') + '</div>' +
+      (idx.length ? '<ul class="items story">' + list + '</ul>' : '<p class="hint">Nothing matches that combination. Clear one filter to widen it.</p>');
+  } else {
+    reader.innerHTML = ADD_BTN + '<div class="empty"><p class="eyebrow">Reading Panel</p><p style="margin-top:10px">Pick a dot on the map, or filter by thread, week or category. The passage and everything it connects to will appear here.</p><p>Dots with several colored segments belong to more than one thread. Those are the places where your ideas bridge.</p></div>';
+  }
+  reader.scrollTop = 0;
+}
+
+/* ---------- adding a reflection ---------- */
+const KEYS = {
+  V: /villain|enem|moral|ethic|empath|harm|wrong|assumption|bias|othering|belief|politic|flip|greenwash|manipulat|blind spot|challeng|villainiz|nazi|genocide/g,
+  D: /what is design|design is|boundar|defin|constraint|limit|frugal|culture|craft|discipline|engineer|artist|canon|field|systems design|structure|cut.?off|speculative|futures cone/g,
+  A: /purpose|argument|\bmaps?\b|mapping|message|objective|prototype|intention|stor(y|ies|ytelling)|narrative|curiosity|goal|useful|hypothesis|fail|fram(e|ing)|meaning|why we/g,
+  R: /ripple|cascade|consequence|unintended|wolf|wolves|leverage|ecosystem|impact|feedback|rebound|wicked|bullwhip|system|iceberg|layer|decades/g,
+  S: /\bbias|background|outsider|identity|position|myself|\bgrow|strength|liability|clarity|uncertain|my (own|group|role)|i('m| am) (a|an|still|not)|i (feel|notice|noticed|realize|realized)/g,
+  O: /observ|neutral|interview|ethnograph|vulnerab|trust|survey|intru|creepy|watch|participant|presence|loneliness|people say|co-?presence|paradox/g
+};
+function keywordTags(t) {
+  const low = t.toLowerCase();
+  const sc = TAGS.map(k => [k, (low.match(KEYS[k]) || []).length]);
+  const firstPerson = (low.match(/\b(i|my|me|myself)\b/g) || []).length;
+  if (firstPerson >= 3) sc.find(x => x[0] === 'S')[1] += 1;
+  const out = sc.filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]);
+  return out.length ? out : ['S'];
+}
+let samplePromise = null;
+function getSample() {
+  if (!window.claude || !claude.use) return Promise.resolve(null);
+  samplePromise = samplePromise || claude.use('sample').catch(() => null);
+  return samplePromise;
+}
+function linkCount(tags) { return D.filter(d => d.g.some(t => tags.includes(t))).length; }
+const $ = id => document.getElementById(id);
+
+function renderForm() {
+  if (draft.w == null || draft.w > WEEKS + 1) draft.w = WEEKS;
+  const weekOpts = Array.from({ length: WEEKS + 1 }, (_, i) => '<option value="' + (i + 1) + '">Week ' + (i + 1) + (i === WEEKS ? ' (new ring)' : '') + '</option>').join('');
+  reader.innerHTML = '<p class="eyebrow">New reflection</p>' +
+    '<label class="lbl" for="f-text">What are you thinking?</label>' +
+    '<textarea id="f-text" rows="7" placeholder="Write the passage the way you would on the board."></textarea>' +
+    '<div class="row"><div><label class="lbl" for="f-week">Week</label><select id="f-week">' + weekOpts + '</select></div>' +
+    '<div><label class="lbl" for="f-cat">Category</label><select id="f-cat">' + CATS.map((c, i) => '<option value="' + i + '">' + c + '</option>').join('') + '</select></div></div>' +
+    '<div class="lbl-row"><span class="lbl">Threads</span><button class="mini" data-act="suggest" id="f-suggest">Suggest</button></div>' +
+    '<ul class="chips" id="f-chips">' + TAGS.map(t => '<li><button class="chip tg" data-t="' + t + '" aria-pressed="false" style="--c:' + NARR[t].color + '"><i></i>' + esc(NARR[t].name) + '</button></li>').join('') + '</ul>' +
+    '<p class="hint" id="f-hint" aria-live="polite"></p>' +
+    '<div class="actions"><button class="primary" data-act="submit" id="f-add">Add to map</button><button class="clear" data-act="cancel">Cancel</button></div>';
+  $('f-text').value = draft.t; $('f-week').value = draft.w; $('f-cat').value = draft.c;
+  syncChips();
+}
+function syncChips() {
+  reader.querySelectorAll('.tg').forEach(b => b.setAttribute('aria-pressed', String(draft.g.includes(b.dataset.t))));
+  const h = $('f-hint'); if (!h) return;
+  h.textContent = draft.g.length ? 'Will link to ' + linkCount(draft.g) + ' existing passages.' : 'No thread chosen. Press Suggest, or pick one or more.';
+}
+function setHint(msg) { const h = $('f-hint'); if (h) h.textContent = msg; }
+function busy(on) { ['f-add', 'f-suggest'].forEach(id => { const b = $(id); if (b) b.disabled = on; }); }
+
+async function suggest() {
+  const t = draft.t.trim();
+  if (!t) { setHint('Write the reflection first.'); return; }
+  busy(true); setHint('Reading your reflection…');
+  let tags = null, via = 'keywords';
+  const sample = await getSample();
+  if (sample) {
+    const list = TAGS.map(k => k + ': ' + NARR[k].name + ' (' + NARR[k].desc + ')').join('\n');
+    try {
+      const out = await sample.json('You place reflections from a design student\'s course notes on a map of six threads of thought:\n' + list +
+        '\n\nChoose 1 to 3 thread codes the reflection genuinely touches, best match first. Reply with only JSON like {"tags":["O","M"]}.\n\nReflection (week ' + draft.w + ', ' + CATS[draft.c] + '):\n' + t, { modelTier: 'quick' });
+      const arr = Array.isArray(out) ? out : (out && out.tags) || [];
+      const clean = [...new Set(arr.map(x => String(x).trim().toUpperCase()).filter(x => NARR[x]))].slice(0, 3);
+      if (clean.length) { tags = clean; via = 'Claude'; }
+    } catch (e) { /* fall back to keywords */ }
+  }
+  if (!tags) tags = keywordTags(t);
+  draft.g = tags; busy(false); syncChips();
+  setHint('Suggested by ' + via + '. Will link to ' + linkCount(tags) + ' existing passages. Toggle a thread to change it.');
+}
+
+/* storage: shared db when this viewer can use it, otherwise this browser only */
+const LS_KEY = 'reflection-map-entries-v1';
+const store = { coll: null, mode: 'local' };
+let userShared = [], userLocal = [];
+function loadLocal() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } }
+function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(userLocal)); } catch (e) {} }
+function refreshUser() {
+  const keepBase = sel != null && !D[sel].mine ? sel : null;
+  const keepId = sel != null && D[sel].mine ? D[sel].id : null;
+  hov = null; D.length = BASE_N;
+  [...userShared, ...userLocal].sort((a, b) => (a.ts || 0) - (b.ts || 0)).forEach(u => {
+    const LEGACY = { M: 'A', C: 'D', I: 'S' };
+    const g = [...new Set(String(u.g || '').split('').map(x => LEGACY[x] || x).filter(x => NARR[x]))];
+    const w = Math.round(+u.w), c = Math.round(+u.c);
+    if (!g.length || !(w >= 1 && w <= 60) || !(c >= 0 && c <= 5) || !u.t) return;
+    D.push({ w, c, t: String(u.t), g, id: String(u.id), mine: true });
+  });
+  rebuild();
+  sel = keepBase != null ? keepBase : keepId ? (i => i < 0 ? null : i)(D.findIndex(d => d.id === keepId)) : null;
+  recompute();
+  if (!formOpen) renderReader();
+}
+async function initStore() {
+  userLocal = loadLocal(); refreshUser();
+  try {
+    if (!window.claude || !claude.use) return;
+    const db = await claude.use('db'); if (!db) return;
+    store.coll = db.collection('entries'); store.mode = 'shared';
+    store.coll.onSnapshot(snap => { userShared = snap.docs.map(d => Object.assign({ id: d.id }, d.data())); refreshUser(); }, () => { store.mode = 'local'; });
+  } catch (e) { /* stay local */ }
+}
+async function submit() {
+  const t = draft.t.trim();
+  if (!t) { setHint('Write something first.'); return; }
+  if (!draft.g.length) { await suggest(); if (!draft.g.length) return; }
+  busy(true);
+  const e = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), w: draft.w, c: draft.c, t, g: draft.g.join(''), ts: Date.now() };
+  let where = 'the shared map';
+  if (store.mode === 'shared') {
+    try { await store.coll.doc(e.id).set({ w: e.w, c: e.c, t: e.t, g: e.g, ts: e.ts }); if (!userShared.some(x => x.id === e.id)) userShared.push(e); }
+    catch (err) { userLocal.push(e); saveLocal(); where = 'this browser only'; }
+  } else { userLocal.push(e); saveLocal(); where = 'this browser only'; }
+  draft.t = ''; draft.g = [];
+  formOpen = false; sel = null; clearFilters(); syncFilters();
+  refreshUser();
+  const idx = D.findIndex(d => d.id === e.id);
+  if (idx >= 0) selectNode(idx);
+  const n = document.createElement('p'); n.className = 'hint'; n.textContent = 'Added to week ' + e.w + ' -- ' + CATS[e.c] + '. Saved to ' + where + '.';
+  reader.prepend(n);
+}
+let removeArm = null;
+async function removeEntry(btn) {
+  const id = btn.dataset.id;
+  if (removeArm !== id) { removeArm = id; btn.textContent = 'Press again to remove'; return; }
+  removeArm = null;
+  if (userLocal.some(e => e.id === id)) { userLocal = userLocal.filter(e => e.id !== id); saveLocal(); }
+  else { userShared = userShared.filter(e => e.id !== id); try { await store.coll.doc(id).delete(); } catch (err) {} }
+  sel = null; refreshUser(); renderReader();
+}
+
+reader.addEventListener('input', e => {
+  if (e.target.id === 'f-text') draft.t = e.target.value;
+  else if (e.target.id === 'f-week') draft.w = +e.target.value;
+  else if (e.target.id === 'f-cat') draft.c = +e.target.value;
+});
+reader.addEventListener('click', e => {
+  const tg = e.target.closest('.tg');
+  if (tg) { const t = tg.dataset.t; draft.g = draft.g.includes(t) ? draft.g.filter(x => x !== t) : [...draft.g, t]; syncChips(); return; }
+  const act = e.target.closest('[data-act]');
+  if (act) {
+    const a = act.dataset.act;
+    if (a === 'add') { formOpen = true; sel = null; syncFilters(); recompute(); renderReader(); const f = $('f-text'); if (f) f.focus(); }
+    else if (a === 'cancel') { formOpen = false; renderReader(); }
+    else if (a === 'suggest') suggest();
+    else if (a === 'submit') submit();
+    else if (a === 'remove') removeEntry(act);
+    else if (a === 'back') { sel = null; recompute(); renderReader(); }
+    return;
+  }
+  const it = e.target.closest('.item'); if (it) { selectNode(+it.dataset.i); return; }
+  const sb = e.target.closest('[data-sort]'); if (sb) { sortBy = sb.dataset.sort; renderReader(); return; }
+  const ch = e.target.closest('.chip'); if (ch) setFilter('t', ch.dataset.t);
+});
+
+/* ---------- boot ---------- */
+new ResizeObserver(layout).observe(stage);
+rebuild(); renderReader(); layout(); initStore();
+if (document.fonts) {
+  Promise.all([document.fonts.load('italic 17px Newsreader'), document.fonts.load('500 11px "IBM Plex Mono"')]).then(draw).catch(() => {});
+  document.fonts.ready.then(draw);
+}
+</script>
+
+</body></html>
