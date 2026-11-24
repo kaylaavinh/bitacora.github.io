@@ -190,6 +190,20 @@ button:disabled { opacity: 0.5; cursor: progress; }
   .reader { border-left: 0; border-top: 1px solid var(--rule); padding: 14px 0 18px; }
   .entry-text { font-size: 17px; margin: 8px 0 12px; }
 }
+/* bibliography: button in the bottom-left corner, list opens above it */
+.biblio { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: 16px; z-index: 5; }
+.biblio summary { list-style: none; cursor: pointer; display: inline-block; font-family: calibri; font-size: 12px; letter-spacing: 0.04em; color: var(--fg); text-decoration: underline; text-underline-offset: 3px; color: var(--dim); text-decoration-thickness: 1px; padding: 4px 0; }
+.biblio summary::after { content: '↑'; display: inline-block; margin-left: 5px; text-decoration: none; transition: transform 0.2s ease; }   /* the little arrow; flips down when open */
+.biblio[open] summary::after { transform: rotate(180deg); }
+.biblio summary::-webkit-details-marker { display: none; }
+.biblio summary:hover { color: var(--dim); }
+.biblio summary:focus-visible { outline: 2px solid var(--dim); outline-offset: 2px; }
+.biblio[open] summary { color: var(--dim); }
+.bib-body { position: absolute; left: 0; bottom: calc(100% + 8px); width: min(560px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35); }
+.bib-body h2 { font-weight: 400; font-size: 20px; margin: 0 0 12px; }
+.bib-body ol { margin: 0; padding-left: 26px; }
+.bib-body li { font-size: 13px; line-height: 1.5; color: var(--dim); margin-bottom: 9px; padding-left: 2px; }
+.bib-body li::marker { color: var(--faint); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { #tip { transition: none; } }
 </style>
 
@@ -225,6 +239,42 @@ button:disabled { opacity: 0.5; cursor: progress; }
 </main>
 
 <section class="reader" id="reader" aria-live="polite"></section>
+
+<details class="biblio">
+  <summary>Bibliography</summary>
+  <div class="bib-body">
+    <h2>Bibliography</h2>
+    <ol>
+      <li>Meadows, D. H. (2008). <i>Thinking in systems: A primer</i>. Chelsea Green.</li>
+      <li>Norman, D. (2010). Why design education must change. <i>Core77</i>.</li>
+      <li>Ripple, W. J., &amp; Beschta, R. L. (2012). Trophic cascades in Yellowstone: The first 15 years after wolf reintroduction. <i>Biological Conservation, 145</i>(1), 205–213.</li>
+      <li>Kahneman, D. (2011). <i>Thinking, fast and slow</i>. Farrar, Straus and Giroux.</li>
+      <li>Rittel, H. W. J., &amp; Webber, M. M. (1973). Dilemmas in a general theory of planning. <i>Policy Sciences, 4</i>(2), 155–169.</li>
+      <li>Hall, E. T. (1976). <i>Beyond culture</i>. Anchor Books.</li>
+      <li>Haidt, J. (2024). <i>The anxious generation</i>. Penguin Press.</li>
+      <li>Inayatullah, S. (1998). Causal layered analysis: Poststructuralism as method. <i>Futures, 30</i>(8), 815–829.</li>
+      <li>Manzini, E. (2015). <i>Design, when everybody designs: An introduction to design for social innovation</i>. MIT Press.</li>
+      <li>Maté, G., &amp; Maté, D. (2022). <i>The myth of normal</i>. Avery.</li>
+      <li>Sanders, E. B.-N., &amp; Stappers, P. J. (2012). <i>Convivial toolbox: Generative research for the front end of design</i>. BIS Publishers.</li>
+      <li>Sim, D. (2019). <i>Soft city: Building density for everyday life</i>. Island Press.</li>
+      <li>Harley, J. B. (1989). Deconstructing the map. <i>Cartographica, 26</i>(2), 1–20.</li>
+      <li>Wood, D. (1992). <i>The power of maps</i>. Guilford Press.</li>
+      <li>Rawsthorn, A. (2018). <i>Design as an attitude</i>. JRP|Ringier.</li>
+      <li>Booth, C. (1889). <i>Maps descriptive of London poverty</i>.</li>
+      <li>Radjou, N., &amp; Prabhu, J. (2015). <i>Frugal innovation</i>. The Economist / Profile Books.</li>
+      <li>Lange, D. [Work, year].</li>
+      <li>Kurlansky, M. (2002). <i>Salt: A world history</i>. Walker &amp; Company.</li>
+      <li>Dunne, A., &amp; Raby, F. (2013). <i>Speculative everything: Design, fiction, and social dreaming</i>. MIT Press.</li>
+      <li>Olson, M. (1965). <i>The logic of collective action</i>. Harvard University Press.</li>
+      <li>Escobar, A. (2018). <i>Designs for the pluriverse</i>. Duke University Press.</li>
+      <li>Voros, J. (2003). A generic foresight process framework. <i>Foresight, 5</i>(3), 10–21.</li>
+      <li>Brand, S. (1999). <i>The clock of the long now</i>. Basic Books.</li>
+      <li>Baudrillard, J. (1994). <i>Simulacra and simulation</i> (S. F. Glaser, Trans.). University of Michigan Press. (Original work published 1981)</li>
+      <li>Barthes, R. (1972). <i>Mythologies</i> (A. Lavers, Trans.). Hill and Wang. (Original work published 1957)</li>
+      <li>Yablonski, J. (2020). <i>Laws of UX</i>. O'Reilly Media.</li>
+    </ol>
+  </div>
+</details>
 
 <script>
 /* ---------- colors: read from the :root variables in the CSS ---------- */
@@ -610,6 +660,7 @@ cell(11, 4, [
 cell(11, 5, [
  [`Each layer impacts each other. Understanding what you're trying to achieve changes how you evaluate effectiveness.`, 'RA']
 ]);
+
 cell(12, 0, [
  [`Storytelling matters so much. A great project can come across badly if the presentation is bad, and a weaker project can seem great if the story is compelling—especially when a jury only sees it for ten minutes.`, 'A'],
  [`I’m getting sick of AI presentations. I use AI too, but so many presentations feel interchangeable, and it’s making me care less about watching them.`, 'DS'],
