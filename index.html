@@ -119,6 +119,7 @@ h1 em { font-style: italic; color: var(--dim); }
 
 .add { font-family: calibri; font-size: 11px; letter-spacing: 0.04em; color: var(--fg); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 11px; margin: 0 0 18px; background: var(--hover); }
 .add:hover { border-color: var(--dim); }
+.add { display: none !important; }   /* hide "Add a reflection" for now; delete this line to bring it back */
 .lbl { display: block; font-family: calibri; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--dim); margin: 16px 0 6px; }
 .lbl-row { display: flex; justify-content: space-between; align-items: end; }
 .lbl-row .lbl { margin-bottom: 6px; }
@@ -609,7 +610,43 @@ cell(11, 4, [
 cell(11, 5, [
  [`Each layer impacts each other. Understanding what you're trying to achieve changes how you evaluate effectiveness.`, 'RA']
 ]);
-
+cell(12, 0, [
+ [`Storytelling matters so much. A great project can come across badly if the presentation is bad, and a weaker project can seem great if the story is compelling—especially when a jury only sees it for ten minutes.`, 'A'],
+ [`I’m getting sick of AI presentations. I use AI too, but so many presentations feel interchangeable, and it’s making me care less about watching them.`, 'DS'],
+ [`It makes me unspeakably angry that using AI can sometimes get you a better grade because the work is being graded with AI.`, 'VR'],
+ [`Visual storytelling matters as much as, if not more than, verbal storytelling. I’m comfortable talking and telling stories, but I need to get better at the visual side.`, 'AS']
+]);
+cell(12, 1, [
+ [`I use AI because I worry that not using it means falling behind, even though I don’t want everything I make to have the same AI look.`, 'SD'],
+ [`Graphic design can feel like too many choices. Having rules or boundaries gives me a useful place to start.`, 'DS'],
+ [`I may be too attached to realism. I want designs to fit human nature and what people will actually use, but that might also keep me from imagining beyond what already exists.`, 'SD'],
+ [`I’m wondering if designing around how people already behave means I don’t trust them to make different choices.`, 'VS']
+]);
+cell(12, 2, [
+ [`Ten-minute jury presentations: They show why storytelling shapes how people understand a project, even if they haven’t seen the work behind it.`, 'A'],
+ [`AI-generated presentations: Claude can give me a useful start with basic graphic design, but it can also make my work look like everyone else’s.`, 'DS'],
+ [`The UX laws: Jacob’s Law and Occam’s razor weren’t created specifically for UX, but they’ve been applied usefully. The site presenting them is also a good example of clear visual communication.`, 'D'],
+ [`Email replacing letters: Email can reduce paper use, but sending hundreds of thousands of emails every day can undermine that benefit. It’s an example of the rebound effect and why I try to consider what happens after a design is adopted.`, 'R'],
+ [`Designing for phones: Rather than assuming I can get people off their phones, I often ask how I can make phone use better or more efficient for them.`, 'OR']
+]);
+cell(12, 3, [
+ [`Storytelling connects verbal communication, visual design, presentations, and how people judge a project.`, 'A'],
+ [`The visual side of my bitácora connects to the same challenge: I need to make the ideas clear through how they look, not just what I say.`, 'AS'],
+ [`The UX laws connect design to principles from outside UX, showing how ideas can move between fields.`, 'D'],
+ [`My concern about realism connects to the rebound effect: a design can seem better in theory but create new problems when people use it at scale.`, 'RD'],
+ [`Futures thinking connects imagination to practical design: I can push beyond current limits first, then think about how to get there.`, 'DA']
+]);
+cell(12, 4, [
+ [`How do I make visual storytelling stronger without losing my own style to the generic AI look?`, 'AS'],
+ [`Why do I find it easier to design to prevent something bad than to imagine something genuinely better?`, 'DV'],
+ [`Does designing around people’s current behavior help them, or does it limit what I believe they can do?`, 'VS'],
+ [`How far should I push imagination beyond what feels realistic before bringing the idea back to practical constraints?`, 'DA']
+]);
+cell(12, 5, [
+ [`I want to use more structure—like UX principles—to make visual decisions without getting overwhelmed by options.`, 'DS'],
+ [`I’m experimenting with imagining designs beyond current limitations, then working backward to see what could be possible within them.`, 'DA'],
+ [`I need to consider how a design will be used at scale, not just whether the initial idea seems positive.`, 'R']
+]);
    
 /* ---------- geometry ---------- */
 /* RI = center circle with the name, RI..R0 = "layer 0" (category buttons), R0 = where week 1 starts, BW = ring width */
