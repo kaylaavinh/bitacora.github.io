@@ -7,18 +7,37 @@
 <style>
 /* Layout: threads list (left), radial map (center), reading panel (right). Stacks on phones.
    Single deliberate look: a dark star-chart ground, with one hue per thread of thought. */
+
 :root {
-  --bg: #0a0b11;
-  --panel: #0f1118;
-  --fg: #ffffff;
-  --dim: #ffffff;
-  --faint: #ffffff;
-  --rule: rgba(232, 234, 242, 0.1);
-  --hover: rgba(232, 234, 242, 0.06);
+  --bg: #0B1020;
+  --panel: #111833;
+  --fg: #EEF1FA;
+  --dim: #B3BAD1;
+  --faint: #7C84A0;
+  --ink: 238, 241, 250;
+  --rule: rgba(var(--ink), 0.1);
+  --hover: rgba(var(--ink), 0.06);
+  --hub: #121A35;
+  --hub-hover: #1B2547;
+  --hub-lit: #26325C;
+  --dot: #DCE2F2;
+  --dot-active: #FFFFFF;
+  --ring: 255, 255, 255;
+  --tip-bg: rgba(17, 24, 51, 0.96);
+  --t-v: #FF2093;   /* coral */
+  --t-d: #8BD1E8;   /* gold */
+  --t-a: #B6CF91;   /* sky */
+  --t-r: #FFCA39;   /* mint */
+  --t-s: #FF9858;   /* rose */
+  --t-o: #A79DFF;   /* lavender */
+  --blend: lighter;
   --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   color-scheme: dark;
 }
+
+
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -33,22 +52,30 @@ body {
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
+
+
+
+
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; }
 button:focus-visible, canvas:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-
-button1 { font: calibri; color: black; background:#3d3d3d; border: 0; cursor: pointer; text-align: left; }
-button1:focus-visible, canvas:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-
 
 .threads, .reader { min-height: 0; min-width: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
 .threads { padding: 22px 20px 22px 0; display: flex; flex-direction: column; gap: 18px; }
 .reader { padding: 22px 0 22px 20px; border-left: 1px solid var(--rule); }
+/* nothing selected or filtered: hide the reading panel and give the map its space */
+body { transition: grid-template-columns 0.35s ease, grid-template-rows 0.35s ease; }
+.reader { transition: opacity 0.2s ease 0.25s, visibility 0s; }
+body.reading-off { grid-template-columns: minmax(230px, 280px) minmax(0, 1fr) minmax(0px, 0px); }
+body.reading-off .reader { opacity: 0; visibility: hidden; transition: opacity 0.12s ease, visibility 0s linear 0.35s; }
+.side-add { display: none; align-self: flex-start; }
+body.reading-off .side-add { display: inline-block; }
 
 .eyebrow { font-family: Calibri; font-size: 12px; letter-spacing: 0.09em; color: var(--dim); margin: 0; }
 h1 { font-weight: 400; font-size: 30px; line-height: 1.08; margin: 8px 0 10px; letter-spacing: -0.01em; text-wrap: balance; }
 h1 em { font-style: italic; color: var(--dim); }
 .lede { font-size: 15px; line-height: 1.5; color: var(--dim); margin: 0; max-width: 34ch; }
 
+.threads > .eyebrow { margin-bottom: -12px; }   /* tighten the space under the "Thread" label; more negative = closer */
 .thread-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .thread { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; column-gap: 10px; align-items: baseline; width: 100%; padding: 9px 10px; border-radius: 6px; }
 .thread:hover { background: var(--hover); }
@@ -64,10 +91,10 @@ h1 em { font-style: italic; color: var(--dim); }
 
 .stage { position: relative; min-width: 0; min-height: 0; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
-.zoom { position: absolute; right: 8px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+.zoom { position: absolute; right: 8px; bottom: 12px; z-index: 2; display: flex; flex-direction: column; gap: 4px; }
 .zoom button { width: 30px; height: 30px; border: 1px solid var(--rule); border-radius: 6px; text-align: center; font-family: calibri; font-size: 15px; color: var(--dim); background: var(--panel); }
 .zoom button:hover { color: var(--fg); background: var(--hover); }
-#tip { position: absolute; pointer-events: none; max-width: 260px; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 6px; background: rgba(15, 17, 24, 0.96); font-size: 15px; line-height: 1.4; opacity: 0; transition: opacity 0.12s; z-index: 3; }
+#tip { position: absolute; pointer-events: none; max-width: 260px; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 6px; background: background: var(--tip-bg); font-size: 15px; line-height: 1.4; opacity: 0; transition: opacity 0.12s; z-index: 3; }
 #tip.on { opacity: 1; }
 #tip .eyebrow { margin-bottom: 4px; }
 
@@ -107,17 +134,31 @@ textarea:focus-visible, select:focus-visible { outline: 2px solid var(--fg); out
 .hint { font-family: calibri; font-size: 11px; line-height: 1.6; color: var(--dim); margin: 0 0 14px; }
 .actions { display: flex; gap: 8px; align-items: center; }
 .primary { font-family: calibri; font-size: 12px; font-weight: 500; color: var(--bg); background: var(--fg); border-radius: 6px; padding: 9px 14px; }
-.primary:hover { background: #fff; }
+.primary:hover { background: var(--fg); }
 button:disabled { opacity: 0.5; cursor: progress; }
 .actions .clear { margin-top: 0; }
 
 .filters { display: flex; flex-direction: column; gap: 8px; }
-.fchips { display: flex; flex-wrap: wrap; gap: 5px; }
-.fc { font-family: calibri; font-size: 11px; color: var(--dim); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 8px; white-space: nowrap; }
-.fc span { color: var(--faint); font-variant-numeric: tabular-nums; }
-.fc:hover { background: var(--hover); color: var(--fg); }
-.fc[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
-.fc[aria-pressed="true"] span { color: var(--bg); }
+/* Map buttons: an HTML layer laid over the canvas. Sizes are in map units;
+   the whole layer is scaled with the map, so they grow and shrink with zoom. */
+.ov { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.ovw { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+.ovw button { position: absolute; pointer-events: auto; transform: translate(-50%, -50%); text-align: center; white-space: nowrap; }
+.ovw button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+/* weeks: pills sitting on the timeline */
+/* map buttons are SVG ring segments: categories in "layer 0", weeks as small arcs on the timeline */
+.mapbtns { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+.mb { pointer-events: all; cursor: pointer; outline: none; }
+.mb path { fill: var(--hub); stroke: rgba(var(--ink), 0.22); stroke-width: 1; vector-effect: non-scaling-stroke; transition: fill 0.12s; }
+.mb text { fill: var(--fg); pointer-events: none; }
+.mb.cat text { font-size: 16px; }
+.mb.cat text .pre { font-size: 12px; opacity: 0.7; }
+.mb.wk text { font-family: calibri; font-size: 13px; font-weight: 500; }
+.mb:hover path { fill: var(--hub-hover); }
+.mb.lit path { fill: var(--hub-lit); stroke: rgba(var(--ink), 0.6); }
+.mb[aria-pressed="true"] path { fill: var(--fg); stroke: var(--fg); }
+.mb[aria-pressed="true"] text { fill: var(--bg); }
+.mb:focus-visible path { stroke: var(--fg); stroke-width: 2.5; }
 .filters .clear { align-self: flex-start; margin-top: 2px; }
 .seg { display: flex; align-items: center; gap: 5px; margin: 0 0 12px; font-family: calibri; font-size: 11px; color: var(--dim); }
 .seg span { margin-right: 4px; letter-spacing: 0.09em; text-transform: uppercase; }
@@ -131,15 +172,15 @@ button:disabled { opacity: 0.5; cursor: progress; }
 .items.story .item:hover { background: var(--hover); }
 .items.story .sn { font-size: 17px; line-height: 1.6; color: var(--fg); white-space: pre-wrap; }
 .items.story .meta { font-size: 11px; }
-::placeholder { color: #ffffff; opacity: 0.7; }
+::placeholder { color: var(--fg); opacity: 0.7; }
 
 @media (max-width: 860px) {
   body.forming { grid-template-rows: auto minmax(0, 26%) minmax(0, 1fr); }
+  body.reading-off { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 0%); }
   body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 38%); }
   .threads { padding: 12px 0 6px; gap: 8px; overflow: visible; }
   h1 { font-size: 22px; margin: 2px 0 0; }
   .lede, .how, .threads .eyebrow { display: none; }
-  .fchips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .filters { gap: 6px; }
   .thread-list { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; scrollbar-width: none; }
   .thread { width: auto; flex: none; grid-template-columns: 10px auto; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 99px; }
@@ -153,24 +194,27 @@ button:disabled { opacity: 0.5; cursor: progress; }
 
 <aside class="threads" aria-label="Threads of thought">
   <header>
-    <p class="eyebrow" id="stats">Seven weeks of thinking</p>
-    <h1>Kayla <em>designer?</em></h1>
-    <p class="lede">Each dot is an entry in my bitácora.</p>
-    <p class="lede">Each segment is the type of entry.</p>
-    <p class="lede">Each ring is a week in the semester.</p>
-    <p class="lede">Each color is a theme I've explored.</p>
+    <h1>Bitácora<em> map</em></h1>
+    <p style="font-size: 80%;" >Kayla Vinh</p>
+    <p style="font-size: 80%;" ></p>
+
   </header>
-  <p class="eyebrow">Thread</p>
+  <b style="font-size: 120%; margin-bottom: -12px">Narratives</b>
   <ul class="thread-list" id="threadList"></ul>
   <section class="filters" aria-label="Filter by week and category">
-    <p class="eyebrow">Week</p><div class="fchips" id="weekChips"></div>
-    <p class="eyebrow">Category</p><div class="fchips" id="catChips"></div>
-    <button1 class="clear" id="clearF" hidden>Clear filters</button>
+    <button class="clear" id="clearF" hidden>Clear filters</button>
   </section>
+  <button class="add side-add" id="sideAdd">+ Add a reflection</button>
 </aside>
 
 <main class="stage" id="stage">
-  <canvas id="c" tabindex="0" aria-label="Radial map of reflections. Rings are weeks 1 to 7, slices are the six categories. Use the thread list and reading panel to browse entries."></canvas>
+  <canvas id="c" tabindex="0" aria-label="Radial map of reflections. Rings are weeks, slices are the six categories. Use the thread list and reading panel to browse entries."></canvas>
+  <div class="ov" aria-label="Filter the map"><div class="ovw" id="ovw">
+    <svg class="mapbtns">
+      <g id="catBtns" role="group" aria-label="Filter by category"></g>
+      <g id="weekBtns" role="group" aria-label="Filter by week"></g>
+    </svg>
+  </div></div>
   <div class="zoom">
     <button id="zin" aria-label="Zoom in">+</button>
     <button id="zout" aria-label="Zoom out">&minus;</button>
@@ -182,17 +226,21 @@ button:disabled { opacity: 0.5; cursor: progress; }
 <section class="reader" id="reader" aria-live="polite"></section>
 
 <script>
+/* ---------- colors: read from the :root variables in the CSS ---------- */
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const PAL = { ink: css('--ink'), hub: css('--hub'), fg: css('--fg'), dot: css('--dot'), dotActive: css('--dot-active'), ring: css('--ring') };
+
 /* ---------- threads ---------- */
 const NARR = {
-  V: { name: 'Am I the Villain?', color: '#ff6b57', desc: 'What is my role in design? How can I challenge my expectations of the world and change perspectives to challenge my own.' },
-  D: { name: 'What Is Design?', color: '#ffd24a', desc: 'What are the boundries of design? And how can it be defined or undefined.' },
-  A: { name: 'With or Without Purpose', color: '#5aa9ff', desc: 'Whether making, mapping or acting we need a purpose, a message, a point of view.' },
-  R: { name: 'Ripples and Unintended Consequences', color: '#45d69a', desc: 'Intention and cascades, to what extent are unintended concequences my responsibility.' },
-  S: { name: 'Who Am I in the System', color: '#ff72b8', desc: 'Building my own system and who I am as a designer.' },
-  O: { name: "The Observer's Dilemma", color: '#b890ff', desc: 'By observing adn existing we change reality.' }
+  V: { name: 'Am I the Villain?', color: css('--t-v'), desc: 'What is my role in design? How can I challenge my expectations of the world and change perspectives to challenge my own.' },
+  D: { name: 'What Is Design?', color: css('--t-d'), desc: 'What are the boundries of design? And how can it be defined or undefined.' },
+  A: { name: 'With or Without Purpose', color: css('--t-a'), desc: 'Whether making, mapping or acting we need a purpose, a message, a point of view.' },
+  R: { name: 'Ripples and Unintended Consequences', color: css('--t-r'), desc: 'Intention and cascades, to what extent are unintended concequences my responsibility.' },
+  S: { name: 'Who Am I in the System', color: css('--t-s'), desc: 'Building my own system and who I am as a designer.' },
+  O: { name: "The Observer's Dilemma", color: css('--t-o'), desc: 'By observing adn existing we change reality.' }
 };
 const TAGS = Object.keys(NARR);
-const CATS = ['my opinions', 'my reflections', 'my examples', 'my connections', 'my questions', 'our project'];
+const CATS = [' Opinions', ' Reflections', ' Examples', ' Connections', ' Questions', ' Project'];
 
 /* ---------- entries: week, category, passages [text, tags] ---------- */
 const D = [];
@@ -443,7 +491,7 @@ cell(8, 1, [
  [`I thought maybe the curriculum was coordinated, like they planned these themes, but I think it's actually just connected and I'm getting better at seeing those threads. A connection I made between Dorothea Lange (photography class 3 years ago) and design narratives class right now: technology isn't an objective medium. That just clicked.`, 'AS'],
  [`This is the skill: making connections across seemingly separate things.`, 'DS'],
  [`The iceberg model is everywhere now. Once you see it you can't unsee it. There's so much more behind everything, even mundane stuff. Every small thing has systemic power and history.`, 'RA'],
- [`I can't build my bitakura from an ending I don't know yet. But if I identify themes I'm intrigued by and collect reflections that tie to them, maybe a story emerges. And if not, at least the connections themselves tell a story.`, 'AS']
+ [`I can't build my bitácora from an ending I don't know yet. But if I identify themes I'm intrigued by and collect reflections that tie to them, maybe a story emerges. And if not, at least the connections themselves tell a story.`, 'AS']
 ]);
 cell(8, 2, [
  [`Salt: mundane item, but there's wars, language changes, systemic impact. This is the "grand narrative of everyday shit" I'm obsessed with. And the iodine thing: we switched to fancy salts, lost the iodine that was added decades ago to solve a health problem. No one realized. It was manipulative for our own good, and now we're perpetuating a new problem.`, 'RV'],
@@ -451,7 +499,7 @@ cell(8, 2, [
  [`Dorothea Lange: technology isn't objective. Directly ties to what I frame, what I show, what stays hidden.`, 'AV']
 ]);
 cell(8, 3, [
- [`Storytelling, systems thinking, icebergs everywhere I'm trying to weave these threads together for my bitakura.`, 'AS'],
+ [`Storytelling, systems thinking, icebergs everywhere I'm trying to weave these threads together for my bitácora.`, 'AS'],
  [`Constraints in code parallel how I think about design. Both force you into parameters that somehow create more possibilities. Very representative of how my brain works.`, 'DS'],
  [`Every mental model has a history, a system, a reason. That's what systems design is.`, 'DR']
 ]);
@@ -461,7 +509,7 @@ cell(8, 4, [
  [`Can I make something look good without it feeling AI-generated?`, 'DS']
 ]);
 cell(8, 5, [
- [`I started coding my bitakura in Claude, which is faster but loses some control. But it's actually a good representation of how I think constraints enabling creativity. The structure mirrors my design process.`, 'DS'],
+ [`I started coding my bitácora in Claude, which is faster but loses some control. But it's actually a good representation of how I think constraints enabling creativity. The structure mirrors my design process.`, 'DS'],
  [`Everything looks like Claude now. Sans-serif, clean, AI-generated. I'm tired of it. I love sans-serif (I'm dyslexic), but I need to make it feel intentional, not AI.`, 'DS'],
  [`Being briefed on what the jury vs the professors expect is important to balance.`, 'AS']
 ]);
@@ -507,7 +555,7 @@ cell(10, 0, [
 cell(10, 1, [
  [`Design intentionally reshapes culture. And that's valuable.`, 'D'],
  [`Montessori encouraged failure and ignorance as learning. I love learning. I'm excited about many different topics. But I'm noticing a tension: we encourage curiosity, but always with a goal. We need to know where we're going, display growth, use curiosity as a tool. We're missing the pure version of it.`, 'AS'],
- [`The bigger thing I'm realizing is this question that's emerging as a narrative through my bitacora: Am I the villain?`, 'VS'],
+ [`The bigger thing I'm realizing is this question that's emerging as a narrative through my bitácora: Am I the villain?`, 'VS'],
  [`We talk so much about perspective and challenging assumptions. But I'm starting to ask: if I flip it, if I force myself to believe the opposite, that I'm the enemy, my beliefs are wrong, what are they experiencing? How do I reconcile that?`, 'VS'],
  [`But here's what I'm struggling with: I have strong political beliefs. On abortion, for example, I believe the right to choose what happens to your own body is yours. But my language around that supports my beliefs. It villainizes those who disagree. And I'm trying to flip that, to see if I were on the other side, how am I villainizing my own beliefs? But I end up in the same place. It feels so obvious to me that you shouldn't have to. But clearly people do. And if I want to understand it, I have to empathize with it. Is there a line? Do we even try to understand the Nazis? I don't know the answer.`, 'VS']
 ]);
@@ -564,9 +612,11 @@ cell(11, 5, [
 
    
 /* ---------- geometry ---------- */
-const R0 = 72, BW = 52, MARG = 7;
+/* RI = center circle with the name, RI..R0 = "layer 0" (category buttons), R0 = where week 1 starts, BW = ring width */
+const RI = 75, R0 = 115, GAP = 48, BW = 48, MARG = 7;
+const AXIS_OVER = 44;      // how far the timeline runs past the last ring
 let WEEKS = 7, EXTENT = 610;
-const inner = w => R0 + (w - 1) * BW;
+const inner = w => R0 + GAP + (w - 1) * BW;
 const outer = w => inner(w) + BW;
 const rad = deg => deg * Math.PI / 180;
 const PULL = { V: 0.45, D: 0.5, A: 0.6, R: 0.55, S: 0.5, O: 0.5 };
@@ -578,7 +628,7 @@ TAGS.forEach(t => { NARR[t].rgb = [1, 3, 5].map(i => parseInt(NARR[t].color.slic
 /* positions and connections are rebuilt whenever entries change */
 function rebuild() {
   WEEKS = Math.max(7, ...D.map(d => d.w));
-  EXTENT = outer(WEEKS) + 140;
+  EXTENT = outer(WEEKS) + AXIS_OVER + 20;
   const cellMap = {};
   D.forEach((d, i) => { (cellMap[d.w + '-' + d.c] = cellMap[d.w + '-' + d.c] || []).push(i); });
   Object.values(cellMap).forEach(list => {
@@ -586,7 +636,7 @@ function rebuild() {
     list.forEach((i, k) => {
       const d = D[i];
       const t = (k + 0.5) / n;
-      const a = rad(-90 + 60 * d.c + MARG + t * (60 - 2 * MARG));
+      const a = rad(60 * d.c + MARG + t * (60 - 2 * MARG));
       const off = n === 1 ? 0 : n === 2 ? [-10, 10][k] : [-13, 0, 13][k % 3];
       const r = inner(d.w) + BW / 2 + off;
       d.x = Math.cos(a) * r; d.y = Math.sin(a) * r;
@@ -625,6 +675,7 @@ let W = 0, H = 0, dpr = 1, S = 1, OX = 0, OY = 0;
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const stage = document.getElementById('stage'), tip = document.getElementById('tip');
+const ovw = document.getElementById('ovw');
 
 function recompute() {
   const a = hov != null ? hov : sel;
@@ -638,14 +689,17 @@ function recompute() {
   } else if (hasFlt()) {
     mode = 'filter';
     litNodes = new Set(); D.forEach((d, i) => { if (matchNode(i)) litNodes.add(i); });
-    litEdges = edges.filter(e => litNodes.has(e.a) && litNodes.has(e.b) && (!flt.t || e.t === flt.t));
-    ctxEdges = edges.filter(e => litNodes.has(e.a) !== litNodes.has(e.b) && (!flt.t || e.t === flt.t));
+    // any filter: two dots are only linked if they also share a week or a category (and, with a thread filter, only in that thread)
+    const keep = e => (D[e.a].w === D[e.b].w || D[e.a].c === D[e.b].c) && (!flt.t || e.t === flt.t);
+    litEdges = edges.filter(e => litNodes.has(e.a) && litNodes.has(e.b) && keep(e));
+    ctxEdges = edges.filter(e => litNodes.has(e.a) !== litNodes.has(e.b) && keep(e));
     if (flt.w != null || flt.c != null) {
       const ws = flt.w != null ? [flt.w] : Array.from({ length: WEEKS }, (_, i) => i + 1);
       const cs = flt.c != null ? [flt.c] : [0, 1, 2, 3, 4, 5];
       ws.forEach(w => cs.forEach(c => litCells.set(w + '-' + c, flt.w != null && flt.c != null ? 0.1 : 0.05)));
     } else litNodes.forEach(i => litCells.set(D[i].w + '-' + D[i].c, 0.05));
   } else { mode = 'none'; litNodes = null; litEdges = []; ctxEdges = []; }
+  syncOverlay();
   draw();
 }
 
@@ -658,7 +712,7 @@ function layout() {
   draw();
 }
 function sector(w, c, fill) {
-  const a0 = rad(-90 + 60 * c), a1 = rad(-90 + 60 * (c + 1));
+  const a0 = rad(60 * c), a1 = rad(60 * (c + 1));
   ctx.beginPath(); ctx.arc(0, 0, outer(w), a0, a1); ctx.arc(0, 0, inner(w), a1, a0, true); ctx.closePath();
   ctx.fillStyle = fill; ctx.fill();
 }
@@ -679,24 +733,24 @@ function draw() {
 
   // slices and rings
   for (let c = 0; c < 6; c += 2) {
-    const a0 = rad(-90 + 60 * c), a1 = rad(-90 + 60 * (c + 1));
-    ctx.beginPath(); ctx.arc(0, 0, outer(WEEKS), a0, a1); ctx.arc(0, 0, R0, a1, a0, true); ctx.closePath();
-    ctx.fillStyle = 'rgba(232,234,242,0.016)'; ctx.fill();
+    const a0 = rad(60 * c), a1 = rad(60 * (c + 1));
+    ctx.beginPath(); ctx.arc(0, 0, outer(WEEKS), a0, a1); ctx.arc(0, 0, inner(1), a1, a0, true); ctx.closePath();
+    ctx.fillStyle = 'rgba(' + PAL.ink + ',0.016)'; ctx.fill();
   }
   litCells.forEach((al, key) => {
     const [w, c] = key.split('-').map(Number);
-    sector(w, c, mode === 'filter' && flt.t ? 'rgba(' + NARR[flt.t].rgb + ',' + al + ')' : 'rgba(232,234,242,' + al + ')');
+    sector(w, c, mode === 'filter' && flt.t ? 'rgba(' + NARR[flt.t].rgb + ',' + al + ')' : 'rgba(' + PAL.ink + ',' + al + ')');
   });
-  ctx.strokeStyle = 'rgba(232,234,242,0.09)'; ctx.lineWidth = lw;
+  ctx.strokeStyle = 'rgba(' + PAL.ink + ',0.09)'; ctx.lineWidth = lw;
   for (let w = 1; w <= WEEKS; w++) { ctx.beginPath(); ctx.arc(0, 0, inner(w), 0, Math.PI * 2); ctx.stroke(); }
   ctx.beginPath(); ctx.arc(0, 0, outer(WEEKS), 0, Math.PI * 2); ctx.stroke();
-  for (let c = 0; c < 6; c++) {
-    const a = rad(-90 + 60 * c);
-    ctx.beginPath(); ctx.moveTo(Math.cos(a) * R0, Math.sin(a) * R0); ctx.lineTo(Math.cos(a) * (outer(WEEKS) + 10), Math.sin(a) * (outer(WEEKS) + 10)); ctx.stroke();
+  for (let c = 1; c < 6; c++) {   // c = 0 is the timeline, drawn heavier further down
+    const a = rad(60 * c);
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * inner(1), Math.sin(a) * inner(1)); ctx.lineTo(Math.cos(a) * (outer(WEEKS) + 10), Math.sin(a) * (outer(WEEKS) + 10)); ctx.stroke();
   }
 
   // connections
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = 'source-over';   // normal painting: overlaps build up toward the line's own color instead of toward white
   if (mode === 'none') {
     TAGS.forEach(t => strokeEdges(byTag[t], NARR[t].rgb, 0.05, 0.8));
   } else {
@@ -709,39 +763,25 @@ function draw() {
   }
   ctx.globalCompositeOperation = 'source-over';
 
-  // labels: weeks
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const aN = hov != null ? hov : sel;
-  const activeWeek = aN != null ? D[aN].w : (mode === 'filter' && flt.w != null ? flt.w : -1);
-  for (let w = 1; w <= WEEKS; w++) {
-    const y = -(inner(w) + BW / 2);
-    ctx.fillStyle = '#0a0b11'; ctx.strokeStyle = w === activeWeek ? 'rgba(232,234,242,0.85)' : 'rgba(232,234,242,0.16)';
-    ctx.beginPath(); ctx.roundRect(-12, y - 7, 24, 14, 7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#ffffff'; ctx.font = '500 8.5px "IBM Plex Mono", monospace';
-    ctx.fillText('W' + w, 0, y + 0.5);
-  }
-  // labels: categories
-  const activeCat = aN != null ? D[aN].c : (mode === 'filter' && flt.c != null ? flt.c : -1);
-  for (let c = 0; c < 6; c++) {
-    const a = rad(-90 + 60 * c + 30), r = outer(WEEKS) + 28 + Math.abs(Math.cos(a)) * 44;
-    ctx.globalAlpha = c === activeCat ? 1 : 0.8;
-    ctx.fillStyle = '#ffffff';
-    ctx.font = (c === activeCat ? '600' : '500') + ' 11px "IBM Plex Mono", monospace';
-    if ('letterSpacing' in ctx) ctx.letterSpacing = '1.4px';
-    ctx.fillText(CATS[c].toUpperCase(), Math.cos(a) * r, Math.sin(a) * r);
-    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
-    ctx.globalAlpha = 1;
-  }
+  // timeline: a heavier horizontal axis from the name circle, through layer 0, out past the last ring, ending in an arrow
+  // (the week buttons themselves are HTML, see the overlay below)
+  const axEnd = outer(WEEKS) + AXIS_OVER;
+  ctx.strokeStyle = 'rgba(' + PAL.ink + ',0.55)'; ctx.lineWidth = 1 * lw; ctx.lineCap = 'round';
+  ctx.lineCap = 'butt';
 
-  // center
-  ctx.beginPath(); ctx.arc(0, 0, 58, 0, Math.PI * 2);
-  ctx.fillStyle = '#0d0f16'; ctx.fill(); ctx.strokeStyle = 'rgba(232,234,242,0.3)'; ctx.lineWidth = lw; ctx.stroke();
-  ctx.fillStyle = '#ffffff'; ctx.font = 'italic 400 17px Newsreader, Georgia, serif';
-  ctx.fillText('Kayla', 0, -4);
-  ctx.fillStyle = '#ffffff'; ctx.font = '500 10px "calibri"';
+  // center circle with the name (layer 0, the category ring around it, is SVG in the overlay below)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.beginPath(); ctx.arc(0, 0, RI, 0, Math.PI * 2);
+  ctx.fillStyle = PAL.hub; ctx.fill(); ctx.strokeStyle = 'rgba(' + PAL.ink + ',0.3)'; ctx.lineWidth = lw; ctx.stroke();
+  ctx.fillStyle = PAL.fg; ctx.font = 'italic 400 28px Newsreader, Georgia, serif';
+  ctx.fillText('Kayla', 0, -7);
+  ctx.fillStyle = PAL.fg; ctx.font = '500 13px "calibri"';
   if ('letterSpacing' in ctx) ctx.letterSpacing = '1px';
-  ctx.fillText('The Designer?', 0, 12);
+  ctx.fillText('The Designer?', 0, 15);
   if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+  // keep the HTML buttons glued to the map as it pans and zooms
+  ovw.style.transform = 'translate(' + OX + 'px,' + OY + 'px) scale(' + S + ')';
 
   // nodes
   const active = hov != null ? hov : sel;
@@ -755,14 +795,14 @@ function draw() {
       ctx.strokeStyle = NARR[t].color; ctx.stroke();
     });
     ctx.beginPath(); ctx.arc(d.x, d.y, d.rad, 0, Math.PI * 2);
-    ctx.fillStyle = i === active ? '#ffffff' : '#dfe2ee'; ctx.fill();
+    ctx.fillStyle = i === active ? PAL.dotActive : PAL.dot; ctx.fill();
     if (d.mine) {
       ctx.beginPath(); ctx.arc(d.x, d.y, d.rad + 6, 0, Math.PI * 2);
-      ctx.setLineDash([1.6, 2.4]); ctx.strokeStyle = 'rgba(232,234,242,0.75)'; ctx.lineWidth = 0.9; ctx.stroke(); ctx.setLineDash([]);
+      ctx.setLineDash([1.6, 2.4]); ctx.strokeStyle = 'rgba(' + PAL.ink + ',0.75)'; ctx.lineWidth = 0.9; ctx.stroke(); ctx.setLineDash([]);
     }
     if (i === sel || i === hov) {
       ctx.beginPath(); ctx.arc(d.x, d.y, d.rad + 8, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,' + (i === sel ? 0.95 : 0.6) + ')'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.strokeStyle = 'rgba(' + PAL.ring + ',' + (i === sel ? 0.95 : 0.6) + ')'; ctx.lineWidth = 1.2; ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
@@ -782,6 +822,26 @@ function snip(t, n) { if (t.length <= n) return t; const s = t.slice(0, n); retu
 function esc(s) { return s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
 
 let drag = null, moved = 0;
+let hovDot = null, readDot = null;   // the dot under the mouse, and the dot of the top entry in the reading panel
+const HOVER_GROW = 1.5;   // how big a growing dot gets (1 = no change)
+const GROW_MS = 120;       // how long the grow / shrink takes, in milliseconds
+const baseRad = d => 4.4 + d.g.length * 0.9;
+let growRaf = 0, growT = 0;
+function growTick(t) {     // animates dots toward their target size, then stops
+  const step = (growT ? t - growT : 16) / GROW_MS; growT = t;
+  let busy = false;
+  D.forEach((d, i) => {
+    const to = i === hovDot || i === readDot ? 1 : 0, v = d.gr || 0;
+    if (v === to) return;
+    d.gr = to > v ? Math.min(1, v + step) : Math.max(0, v - step);
+    d.rad = baseRad(d) * (1 + (HOVER_GROW - 1) * (1 - (1 - d.gr) * (1 - d.gr)));
+    if (d.gr !== to) busy = true;
+  });
+  draw();
+  if (busy) growRaf = requestAnimationFrame(growTick); else { growRaf = 0; growT = 0; }
+}
+function kickGrow() { if (!growRaf) { growT = 0; growRaf = requestAnimationFrame(growTick); } }
+cv.addEventListener('pointerleave', () => { hovDot = null; kickGrow(); });
 cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; moved = 0; });
 cv.addEventListener('pointermove', e => {
   const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -790,6 +850,9 @@ cv.addEventListener('pointermove', e => {
     if (moved > 4) { view.x = drag.vx + e.clientX - drag.x; view.y = drag.vy + e.clientY - drag.y; tip.classList.remove('on'); draw(); return; }
   }
   if (e.pointerType === 'touch') return;
+  const hd = hit(mx, my);   // hovering only makes the dot a little bigger
+  if (hd !== hovDot) { hovDot = hd; kickGrow(); }
+  return;
   const h = hit(mx, my);
   if (h !== hov) { hov = h; recompute(); }
   if (h == null) tip.classList.remove('on');
@@ -807,7 +870,7 @@ cv.addEventListener('pointerup', e => {
   if (h != null) selectNode(h); else if (!formOpen) clearAll();
 });
 cv.addEventListener('pointerleave', () => { if (hov != null) { hov = null; recompute(); } tip.classList.remove('on'); });
-cv.addEventListener('wheel', e => {
+stage.addEventListener('wheel', e => {   // on the stage so scrolling over a map button still zooms
   e.preventDefault();
   const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
   zoomAt(mx, my, Math.exp(-e.deltaY * 0.0015));
@@ -824,7 +887,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !(e.target
 
 /* ---------- selection ---------- */
 function selectNode(i) { formOpen = false; sel = i; hov = null; recompute(); renderReader(); }
-function setFilter(k, v) { formOpen = false; flt[k] = flt[k] === v ? null : v; sel = null; hov = null; syncFilters(); recompute(); renderReader(); }
+function setFilter(k, v) { formOpen = false; flt[k] = flt[k] === v ? null : v;
+  if (k === 'w' && flt.w != null) flt.c = null;   // week and category can't be combined: picking one clears the other
+  if (k === 'c' && flt.c != null) flt.w = null; sel = null; hov = null; syncFilters(); recompute(); renderReader(); }
 function clearFilters() { flt.t = null; flt.w = null; flt.c = null; }
 function clearAll() { formOpen = false; if (sel != null) sel = null; else clearFilters(); hov = null; syncFilters(); recompute(); renderReader(); }
 
@@ -838,28 +903,69 @@ TAGS.forEach(t => {
 threadList.addEventListener('click', e => { const b = e.target.closest('.thread'); if (b) setFilter('t', b.dataset.t); });
 function syncFilters() {
   threadList.querySelectorAll('.thread').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === flt.t)));
-  document.querySelectorAll('#weekChips .fc').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.w === flt.w)));
-  document.querySelectorAll('#catChips .fc').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.c === flt.c)));
   document.getElementById('clearF').hidden = !hasFlt();
+  syncOverlay();
 }
-function renderFilters() {
-  const wc = document.getElementById('weekChips'), cc = document.getElementById('catChips');
-  const wn = {}, cn = {};
-  D.forEach(d => { wn[d.w] = (wn[d.w] || 0) + 1; cn[d.c] = (cn[d.c] || 0) + 1; });
-  wc.innerHTML = Array.from({ length: WEEKS }, (_, i) => '<button class="fc" data-w="' + (i + 1) + '" aria-pressed="false">W' + (i + 1) + ' <span>' + (wn[i + 1] || 0) + '</span></button>').join('');
-  cc.innerHTML = CATS.map((c, i) => '<button class="fc" data-c="' + i + '" aria-pressed="false">' + c + ' <span>' + (cn[i] || 0) + '</span></button>').join('');
-  syncFilters();
+/* map buttons: weeks along the timeline, categories in a compass ring around the name */
+function renderOverlay() {
+  const pt = (r, deg) => (Math.cos(rad(deg)) * r).toFixed(2) + ' ' + (Math.sin(rad(deg)) * r).toFixed(2);
+  const ring = (r0, r1, a0, a1) => 'M' + pt(r1, a0) + ' A' + r1 + ' ' + r1 + ' 0 0 1 ' + pt(r1, a1) + ' L' + pt(r0, a1) + ' A' + r0 + ' ' + r0 + ' 0 0 0 ' + pt(r0, a0) + 'Z';
+  // weeks: a small arc in each ring, straddling the timeline. Same arc length in every ring, so outer ones get a narrower angle.
+  const WK_LEN = 34, WK_INSET = 0;   // arc length along the ring, and gap kept from the ring's edges (lets the timeline show through)
+  document.getElementById('weekBtns').innerHTML = Array.from({ length: WEEKS }, (_, i) => {
+    const w = i + 1, rm = inner(w) + BW / 2, h = 6;
+    return '<g class="mb wk" data-w="' + w + '" role="button" tabindex="0" aria-pressed="false" aria-label="Week ' + w + '">' +
+      '<path d="' + ring(inner(w) + WK_INSET, outer(w) - WK_INSET, -h, h) + '"/>' +
+      '<text x="' + rm + '" y="0" text-anchor="middle" dominant-baseline="central">W' + w + '</text></g>';
+  }).join('');
+  // layer 0: one ring segment per category, lined up with its pie slice, name curved along it
+  const RM = (RI + R0) / 2, PAD = 4;   // PAD = degrees kept clear at each end of the label
+  document.getElementById('catBtns').innerHTML = CATS.map((c, i) => {
+    const a0 = 60 * i, a1 = 60 * (i + 1), sp = c.indexOf(' ');
+    const shape = ring(RI, R0, a0, a1);
+    // the bottom three slices get their label path run the other way so the text isn't upside down;
+    // the baseline is nudged so the letters sit in the middle of the band either way
+    const flip = i < 3, rt = flip ? RM + 5 : RM - 5;
+    const guide = flip ? 'M' + pt(rt, a1 - PAD) + ' A' + rt + ' ' + rt + ' 0 0 0 ' + pt(rt, a0 + PAD)
+                       : 'M' + pt(rt, a0 + PAD) + ' A' + rt + ' ' + rt + ' 0 0 1 ' + pt(rt, a1 - PAD);
+    return '<g class="mb cat" data-c="' + i + '" role="button" tabindex="0" aria-pressed="false" aria-label="' + esc(c) + '">' +
+      '<path d="' + shape + '"/><path id="catGuide' + i + '" d="' + guide + '" style="fill:none;stroke:none"/>' +
+      '<text text-anchor="middle"><textPath href="#catGuide' + i + '" startOffset="50%"><tspan class="pre">' + esc(c.slice(0, sp)) + ' </tspan>' + esc(c.slice(sp + 1)) + '</textPath></text></g>';
+  }).join('');
+  fitCatLabels();
+  syncOverlay();
 }
+/* pressed = the active filter; lit = the week/category of the dot you're hovering or have selected */
+/* shrink a label only if it's longer than its segment */
+function fitCatLabels() {
+  ovw.querySelectorAll('.mb.cat').forEach(g => {
+    const t = g.querySelector('text'), guide = g.querySelector('path[id]');
+    t.style.fontSize = '';
+    const len = t.getComputedTextLength(), room = guide.getTotalLength();
+    if (len > room && len > 0) t.style.fontSize = (16 * room / len).toFixed(2) + 'px';
+  });
+}
+function syncOverlay() {
+  const a = hov != null ? hov : sel;
+  ovw.querySelectorAll('.mb.wk').forEach(b => { const w = +b.dataset.w; b.setAttribute('aria-pressed', String(w === flt.w)); b.classList.toggle('lit', a != null && D[a].w === w); });
+  ovw.querySelectorAll('.mb.cat').forEach(b => { const c = +b.dataset.c; b.setAttribute('aria-pressed', String(c === flt.c)); b.classList.toggle('lit', a != null && D[a].c === c); });
+}
+ovw.addEventListener('click', e => {
+  const b = e.target.closest('[data-w],[data-c]'); if (!b) return;
+  if (b.dataset.w) setFilter('w', +b.dataset.w); else setFilter('c', +b.dataset.c);
+});
+ovw.addEventListener('keydown', e => {   // segments aren't <button>s, so make Enter/Space work like one
+  const g = e.target.closest('.mb');
+  if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); g.dataset.w ? setFilter('w', +g.dataset.w) : setFilter('c', +g.dataset.c); }
+});
 document.querySelector('.filters').addEventListener('click', e => {
-  const b = e.target.closest('.fc');
-  if (b) { if (b.dataset.w) setFilter('w', +b.dataset.w); else setFilter('c', +b.dataset.c); return; }
   if (e.target.closest('#clearF')) { clearFilters(); sel = null; syncFilters(); recompute(); renderReader(); }
 });
 function updateMeta() {
   const mine = D.length - BASE_N;
-  document.getElementById('stats').textContent = D.length + ' passages -- ' + pairs + ' links' + (mine ? ' -- ' + mine + ' added' : '');
+  cv.setAttribute('aria-label', 'Radial map of reflections. Rings are weeks 1 to ' + WEEKS + ', slices are the six categories. Use the thread list and reading panel to browse entries.');
   threadList.querySelectorAll('.thread').forEach(b => { b.querySelector('.ct').textContent = NARR[b.dataset.t].count; });
-  renderFilters();
+  renderOverlay();
 }
 
 function itemHtml(i, shared, full) {
@@ -872,6 +978,8 @@ const ADD_BTN = '<button class="add" data-act="add">+ Add a reflection</button>'
 
 function renderReader() {
   document.body.classList.toggle('forming', formOpen);
+  document.body.classList.toggle('reading-off', !formOpen && sel == null && !hasFlt());
+  queueMicrotask(updateReadDot);   // once the panel is filled, grow the dot of its top entry
   if (formOpen) { renderForm(); return; }
   if (sel != null) {
     const d = D[sel];
@@ -891,14 +999,25 @@ function renderReader() {
     idx.forEach(i => { const k = keyOf(i); if (k !== last) { list += '<li class="grp">' + esc(labelOf(k)) + '</li>'; last = k; } list += itemHtml(i, D[i].g, true); });
     reader.innerHTML = ADD_BTN + '<p class="eyebrow">Filtered by</p><p class="entry-text" style="margin-bottom:6px">' + esc(parts.join(' -- ')) + '</p>' +
       (flt.t && parts.length === 1 ? '<p class="lede" style="max-width:none">' + esc(NARR[flt.t].desc) + '</p>' : '') +
-      '<p class="tcount">' + idx.length + ' passages</p>' +
-      '<div class="seg" role="group" aria-label="Sort passages by"><span>Sort by</span>' + ['week', 'category', 'thread'].map(k => '<button data-sort="' + k + '" aria-pressed="' + (sortBy === k) + '">' + k + '</button>').join('') + '</div>' +
+      '<p</p>' +
       (idx.length ? '<ul class="items story">' + list + '</ul>' : '<p class="hint">Nothing matches that combination. Clear one filter to widen it.</p>');
   } else {
     reader.innerHTML = ADD_BTN + '<div class="empty"><p class="eyebrow">Reading Panel</p><p style="margin-top:10px">Pick a dot on the map, or filter by thread, week or category. The passage and everything it connects to will appear here.</p><p>Dots with several colored segments belong to more than one thread. Those are the places where your ideas bridge.</p></div>';
   }
   reader.scrollTop = 0;
 }
+
+/* the entry at the top of the reading panel grows its dot on the map */
+function updateReadDot() {
+  let top = null;
+  if (!formOpen && !document.body.classList.contains('reading-off')) {
+    const items = reader.querySelectorAll('.item[data-i]'), room = reader.scrollHeight - reader.clientHeight;
+    const p = room > 0 ? reader.scrollTop / room : 0;   // how far through the scroll: 0 = top, 1 = bottom
+    if (items.length) top = +items[Math.round(p * (items.length - 1))].dataset.i;
+  }
+  if (top !== readDot) { readDot = top; kickGrow(); }
+}
+reader.addEventListener('scroll', updateReadDot, { passive: true });
 
 /* ---------- adding a reflection ---------- */
 const KEYS = {
@@ -959,7 +1078,7 @@ async function suggest() {
     const list = TAGS.map(k => k + ': ' + NARR[k].name + ' (' + NARR[k].desc + ')').join('\n');
     try {
       const out = await sample.json('You place reflections from a design student\'s course notes on a map of six threads of thought:\n' + list +
-        '\n\nChoose 1 to 3 thread codes the reflection genuinely touches, best match first. Reply with only JSON like {"tags":["O","M"]}.\n\nReflection (week ' + draft.w + ', ' + CATS[draft.c] + '):\n' + t, { modelTier: 'quick' });
+        '\n\nChoose 1 to 3 thread codes the reflection genuinely touches, best match first. Reply with only JSON like {"tags":["O","A"]}.\n\nReflection (week ' + draft.w + ', ' + CATS[draft.c] + '):\n' + t, { modelTier: 'quick' });
       const arr = Array.isArray(out) ? out : (out && out.tags) || [];
       const clean = [...new Set(arr.map(x => String(x).trim().toUpperCase()).filter(x => NARR[x]))].slice(0, 3);
       if (clean.length) { tags = clean; via = 'Claude'; }
@@ -1054,12 +1173,18 @@ reader.addEventListener('click', e => {
   const ch = e.target.closest('.chip'); if (ch) setFilter('t', ch.dataset.t);
 });
 
+/* ---------- boot ---------- *//* the panel is hidden when nothing is selected, so "Add a reflection" lives in the sidebar then */
+document.getElementById('sideAdd').addEventListener('click', () => {
+  formOpen = true; sel = null; syncFilters(); recompute(); renderReader();
+  const f = $('f-text'); if (f) f.focus();
+});
+
 /* ---------- boot ---------- */
 new ResizeObserver(layout).observe(stage);
 rebuild(); renderReader(); layout(); initStore();
 if (document.fonts) {
   Promise.all([document.fonts.load('italic 17px Newsreader'), document.fonts.load('500 11px "IBM Plex Mono"')]).then(draw).catch(() => {});
-  document.fonts.ready.then(draw);
+  document.fonts.ready.then(() => { draw(); fitCatLabels(); });
 }
 </script>
 
